@@ -26,14 +26,28 @@ body {
 }
 
 .main {
+  position: relative;
+  overflow: hidden;
   padding: 16px;
-  overflow: auto;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.canvas:active {
+  cursor: grabbing;
 }
 
 .tree-svg {
   display: block;
-  background: #1b1b1b;
-  border-radius: 8px;
+  transform-origin: 0 0;
+  will-change: transform;
 }
 
 .error {
@@ -65,6 +79,95 @@ body {
 .init-list span {
   color: #b8b8b8;
   font-weight: 600;
+}
+
+.checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  color: #e8e8e8 !important;
+}
+
+.checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #2563eb;
+}
+
+.dev {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dev section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dev h3 {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9a9a9a;
+}
+
+.dev pre {
+  margin: 0;
+  background: #141414;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  color: #d4d4d4;
+  overflow: auto;
+  max-height: 60vh;
+}
+
+.center-btn {
+  right: 384px !important;
+  font-size: 18px !important;
+}
+
+.dev-toggle {
+  position: fixed;
+  bottom: 16px;
+  right: 336px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #3a3a3a;
+  background: #2c2c2c;
+  color: #9a9a9a;
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.dev-toggle:hover {
+  background: #363636;
+  color: #e8e8e8;
+}
+
+.dev-toggle.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: #8a8a8a;
+  line-height: 1.5;
 }
 
 select {
@@ -108,6 +211,22 @@ select {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #9a9a9a;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.asterisk {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.unapplied {
+  font-size: 11px;
+  color: #f87171;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .section label {
@@ -153,4 +272,23 @@ textarea:focus {
 
 .btn:active {
   background: #1e40af;
+}
+
+.btn-secondary {
+  background: #2c2c2c;
+  border: 1px solid #3a3a3a;
+}
+
+.btn-secondary:hover {
+  background: #363636;
+}
+
+.btn-secondary:active {
+  background: #404040;
+}
+
+.btn:disabled {
+  background: #2a2a2a;
+  color: #666;
+  cursor: not-allowed;
 }

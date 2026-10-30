@@ -25,6 +25,7 @@ export type TreeConfig = {
   fanout: number;
 
   insert_mode: "top_down" | "bottom_up";
+  inner_nodes_have_data: boolean;
 };
 
 export type Split = {
@@ -47,6 +48,10 @@ export class TreeNode {
 
   is_full(): boolean {
     return this.data_keys.length + 1 === this.tree.config.fanout;
+  }
+
+  is_overflow(): boolean {
+    return this.data_keys.length + 1 > this.tree.config.fanout;
   }
 
   insert_top_down(value: number) {
@@ -87,19 +92,21 @@ export class TreeNode {
     // unique keys
     if (this.data_keys[index] === value) return null;
 
-    if (this.children.length === 0) {
+    const is_leaf_node = this.children.length === 0;
+
+    if (is_leaf_node) {
       // inserts at index
       this.data_keys.splice(index, 0, value);
+    } else {
+      const maybe_split = this.children[index].insert_bottom_up(value);
+
+      if (maybe_split) {
+        this.data_keys.splice(index, 0, maybe_split.median);
+        this.children.splice(index + 1, 0, maybe_split.right);
+      }
     }
 
-    const maybe_split = this.children[index].insert_bottom_up(value);
-
-    if (maybe_split) {
-      this.data_keys.splice(index, 0, maybe_split.median);
-      this.children.splice(index + 1, 0, maybe_split.right);
-    }
-
-    return this.is_full() ? this.split() : null;
+    return this.is_overflow() ? this.split() : null;
   }
 
   split(): Split {
@@ -107,10 +114,22 @@ export class TreeNode {
 
     // build the right node
 
-    let right: TreeNode = new TreeNode(
-      this.tree,
-      ...this.data_keys.slice(median_index + 1),
-    );
+    const is_leaf = this.children.length === 0;
+    const is_bplus_leaf = !this.tree.config.inner_nodes_have_data && is_leaf;
+
+    let right: TreeNode;
+
+    if (is_bplus_leaf) {
+      // B+ leaf: right keeps the median; a copy goes up as the separator
+      right = new TreeNode(this.tree, ...this.data_keys.slice(median_index));
+    } else {
+      // B-tree node, or B+ internal node: the median moves up, so it's
+      // left out of both halves
+      right = new TreeNode(
+        this.tree,
+        ...this.data_keys.slice(median_index + 1),
+      );
+    }
 
     right.children = this.children.slice(median_index + 1);
 
@@ -162,19 +181,25 @@ export class Tree {
       return;
     }
 
-    if (this.root_node.is_full()) {
-      const old_root = this.root_node;
-      const { median, right } = old_root.split();
-      const new_root = new TreeNode(this, median);
-      new_root.children = [old_root, right];
-      this.root_node = new_root;
+    if (this.config.insert_mode === "top_down") {
+      // preemptive split if already full
+      if (this.root_node.is_full()) {
+        this.grow_root(this.root_node.split());
+      }
+      this.root_node.insert_top_down(value);
+      return;
     }
 
-    if (this.config.insert_mode === "bottom_up") {
-      this.root_node.insert_bottom_up(value);
-    } else if (this.config.insert_mode === "top_down") {
-      this.root_node.insert_top_down(value);
+    const split = this.root_node.insert_bottom_up(value);
+    if (split) {
+      this.grow_root(split);
     }
+  }
+
+  private grow_root({ median, right }: Split) {
+    const new_root = new TreeNode(this, median);
+    new_root.children = [this.root_node!, right];
+    this.root_node = new_root;
   }
 
   search(): Event[] {
@@ -191,12 +216,12 @@ export function create_b_tree(config: TreeConfig): TreeCreationResult {
     };
   }
 
-  if (config.fanout === 3 && config.insert_mode == "bottom_up") {
+  if (config.fanout % 2 === 1 && config.insert_mode == "top_down") {
     return {
       error: true,
-      type: "BottomUpOddFanout",
+      type: "TopDownOddFanout",
       message:
-        "B Tree's using the bottom up method must have an even fanout >= 4",
+        "B Tree's using the top down method must have an even fanout >= 4",
     };
   }
 
@@ -217,7 +242,7 @@ export type TreeCreationResult =
 
 export type TreeConfigurationError =
   | {
-      type: "BottomUpOddFanout";
+      type: "TopDownOddFanout";
       message: string;
     }
   | {
