@@ -1,7 +1,11 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import { createMemo, createSignal, For, Show } from "solid-js";
-import { create_tree, TreeNode, type Tree } from "core";
+import {
+  create_b_tree,
+  type Tree,
+  type TreeConfigurationError,
+} from "core";
 import "./styles.css";
 
 const CELL_W = 48;
@@ -111,15 +115,37 @@ function draw(laid: Laid, x: number, y: number, out: Shape[]) {
   }
 }
 
+function build(
+  fanout: number,
+  mode: "top_down" | "bottom_up",
+  init: number[],
+): { tree: Tree | undefined; error: TreeConfigurationError | undefined } {
+  const result = create_b_tree({ fanout, insert_mode: mode });
+  if (result.error) {
+    return { tree: undefined, error: result };
+  }
+  for (const v of init) result.tree.insert(v);
+  return { tree: result.tree, error: undefined };
+}
+
 function App() {
-  const [tree, setTree] = createSignal<Tree>(create_tree({ fanout: 2 }));
   const [fanout, setFanout] = createSignal(3);
+  const [mode, setMode] = createSignal<"top_down" | "bottom_up">("top_down");
+  const [initValues, setInitValues] = createSignal<number[]>([]);
   const [data, setData] = createSignal("");
   const [tick, setTick] = createSignal(0);
 
-  const createTree = () => {
-    setTree(create_tree({ fanout: fanout() }));
-    setTick((t) => t + 1);
+  const initial = build(fanout(), mode(), initValues());
+  const [tree, setTree] = createSignal<Tree | undefined>(initial.tree);
+  const [error, setError] = createSignal<TreeConfigurationError | undefined>(
+    initial.error,
+  );
+
+  const updateConfig = () => {
+    const { tree: t, error: e } = build(fanout(), mode(), initValues());
+    setTree(t);
+    setError(e);
+    setTick((n) => n + 1);
   };
 
   const addData = () => {
@@ -128,22 +154,23 @@ function App() {
       .map((s) => parseFloat(s.trim()))
       .filter((n) => !Number.isNaN(n));
 
+    if (values.length === 0) return;
+
+    setInitValues([...initValues(), ...values]);
+
     const t = tree();
-    for (const v of values) {
-      if (t.root_node === undefined) {
-        t.root_node = new TreeNode(t, v);
-      } else {
-        t.insert(v);
-      }
+    if (t) {
+      for (const v of values) t.insert(v);
+      setTick((n) => n + 1);
     }
-    setTick((n) => n + 1);
     setData("");
   };
 
   const shapes = createMemo(() => {
     tick();
     const t = tree();
-    if (!t.root_node) return { shapes: [] as Shape[], width: 0, height: 0 };
+    if (!t || !t.root_node)
+      return { shapes: [] as Shape[], width: 0, height: 0 };
     const laid = layout(t.root_node);
     const out: Shape[] = [];
     draw(laid, 8, 8, out);
@@ -153,9 +180,21 @@ function App() {
   return (
     <div class="app">
       <main class="main">
+        <Show when={error()}>
+          {(err) => (
+            <div class="error">
+              <strong>{err().type}</strong>
+              <div>{err().message}</div>
+            </div>
+          )}
+        </Show>
         <Show
-          when={shapes().shapes.length > 0}
-          fallback={<div class="empty">Add data to see the tree.</div>}
+          when={!error() && shapes().shapes.length > 0}
+          fallback={
+            <Show when={!error()}>
+              <div class="empty">Add data to see the tree.</div>
+            </Show>
+          }
         >
           <svg
             class="tree-svg"
@@ -215,13 +254,25 @@ function App() {
             Fanout
             <input
               type="number"
-              min="2"
+              min="3"
               value={fanout()}
-              onInput={(e) => setFanout(parseInt(e.currentTarget.value) || 2)}
+              onInput={(e) => setFanout(parseInt(e.currentTarget.value) || 3)}
             />
           </label>
-          <button class="btn" onClick={createTree}>
-            Create new tree
+          <label>
+            Mode
+            <select
+              value={mode()}
+              onChange={(e) =>
+                setMode(e.currentTarget.value as "top_down" | "bottom_up")
+              }
+            >
+              <option value="top_down">top_down</option>
+              <option value="bottom_up">bottom_up</option>
+            </select>
+          </label>
+          <button class="btn" onClick={updateConfig}>
+            Update configuration
           </button>
         </section>
         <section class="section">
@@ -235,6 +286,12 @@ function App() {
           <button class="btn" onClick={addData}>
             Add data
           </button>
+          <Show when={initValues().length > 0}>
+            <div class="init-list">
+              <span>init ({initValues().length}):</span>{" "}
+              {initValues().join(", ")}
+            </div>
+          </Show>
         </section>
       </aside>
     </div>
