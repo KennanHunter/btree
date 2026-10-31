@@ -1,0 +1,264 @@
+import { createEffect, createMemo, createSignal, Show } from "solid-js";
+import { useTree } from "../tree-context";
+import { buildShapes, type Shape } from "./layout";
+import { TreeSvg } from "./TreeSvg";
+
+type Props = {
+  fitRequest: () => number;
+};
+
+export function TreeCanvas(props: Props) {
+  const { tree, error, tick } = useTree();
+  const [zoom, setZoom] = createSignal(1);
+  const [pan, setPan] = createSignal({ x: 0, y: 0 });
+  let canvasRef: HTMLDivElement | undefined;
+
+  const shapes = createMemo(() => {
+    tick();
+    const t = tree();
+    if (!t || !t.root_node)
+      return { shapes: [] as Shape[], width: 0, height: 0 };
+    return buildShapes(t.root_node);
+  });
+
+  const centerFit = () => {
+    const el = canvasRef;
+    const s = shapes();
+    if (!el || s.width === 0 || s.height === 0) return;
+    const padding = 32;
+    const sx = (el.clientWidth - padding) / (s.width + 16);
+    const sy = (el.clientHeight - padding) / (s.height + 16);
+    const z = Math.min(sx, sy, 1);
+    const w = (s.width + 16) * z;
+    const h = (s.height + 16) * z;
+    setZoom(z);
+    setPan({
+      x: (el.clientWidth - w) / 2,
+      y: (el.clientHeight - h) / 2,
+    });
+  };
+
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    const el = canvasRef;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const factor = Math.exp(-e.deltaY * 0.001);
+    const z0 = zoom();
+    const z1 = Math.max(0.05, Math.min(10, z0 * factor));
+    const p = pan();
+    setPan({
+      x: mx - ((mx - p.x) * z1) / z0,
+      y: my - ((my - p.y) * z1) / z0,
+    });
+    setZoom(z1);
+  };
+
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinchStart: {
+    dist: number;
+    midx: number;
+    midy: number;
+    zoom: number;
+    pan: { x: number; y: number };
+  } | null = null;
+  let panStart: {
+    pointerId: number;
+    x: number;
+    y: number;
+    pan: { x: number; y: number };
+  } | null = null;
+  let lastTap: { t: number; x: number; y: number } | null = null;
+  let doubleTapZoom: {
+    pointerId: number;
+    startY: number;
+    anchorX: number;
+    anchorY: number;
+    zoom: number;
+    pan: { x: number; y: number };
+  } | null = null;
+  const TAP_MAX_MOVE = 10;
+  const DOUBLE_TAP_WINDOW = 300;
+
+  const onPointerDown = (e: PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (
+      pointers.size === 1 &&
+      e.pointerType === "touch" &&
+      lastTap &&
+      performance.now() - lastTap.t < DOUBLE_TAP_WINDOW &&
+      Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40
+    ) {
+      const el = canvasRef;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        doubleTapZoom = {
+          pointerId: e.pointerId,
+          startY: e.clientY,
+          anchorX: e.clientX - rect.left,
+          anchorY: e.clientY - rect.top,
+          zoom: zoom(),
+          pan: pan(),
+        };
+        panStart = null;
+        lastTap = null;
+        return;
+      }
+    }
+
+    if (pointers.size === 2) {
+      const el = canvasRef;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pts = [...pointers.values()];
+      const dx = pts[0].x - pts[1].x;
+      const dy = pts[0].y - pts[1].y;
+      pinchStart = {
+        dist: Math.hypot(dx, dy),
+        midx: (pts[0].x + pts[1].x) / 2 - rect.left,
+        midy: (pts[0].y + pts[1].y) / 2 - rect.top,
+        zoom: zoom(),
+        pan: pan(),
+      };
+      panStart = null;
+    } else if (pointers.size === 1) {
+      panStart = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        pan: pan(),
+      };
+    }
+  };
+
+  const onPointerMove = (e: PointerEvent) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (doubleTapZoom && doubleTapZoom.pointerId === e.pointerId) {
+      const dy = e.clientY - doubleTapZoom.startY;
+      const factor = Math.exp(dy * 0.01);
+      const z0 = doubleTapZoom.zoom;
+      const z1 = Math.max(0.05, Math.min(10, z0 * factor));
+      const { anchorX, anchorY, pan: p0 } = doubleTapZoom;
+      setPan({
+        x: anchorX - ((anchorX - p0.x) * z1) / z0,
+        y: anchorY - ((anchorY - p0.y) * z1) / z0,
+      });
+      setZoom(z1);
+      return;
+    }
+
+    if (pinchStart && pointers.size === 2) {
+      const pts = [...pointers.values()];
+      const dx = pts[0].x - pts[1].x;
+      const dy = pts[0].y - pts[1].y;
+      const dist = Math.hypot(dx, dy);
+      const z0 = pinchStart.zoom;
+      const z1 = Math.max(0.05, Math.min(10, z0 * (dist / pinchStart.dist)));
+      const { midx, midy, pan: p0 } = pinchStart;
+      setPan({
+        x: midx - ((midx - p0.x) * z1) / z0,
+        y: midy - ((midy - p0.y) * z1) / z0,
+      });
+      setZoom(z1);
+      return;
+    }
+
+    if (panStart && panStart.pointerId === e.pointerId) {
+      setPan({
+        x: panStart.pan.x + (e.clientX - panStart.x),
+        y: panStart.pan.y + (e.clientY - panStart.y),
+      });
+    }
+  };
+
+  const onPointerUp = (e: PointerEvent) => {
+    const target = e.currentTarget as HTMLElement;
+    if (target.hasPointerCapture?.(e.pointerId)) {
+      target.releasePointerCapture(e.pointerId);
+    }
+    const start = pointers.get(e.pointerId);
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+
+    if (doubleTapZoom && doubleTapZoom.pointerId === e.pointerId) {
+      doubleTapZoom = null;
+      lastTap = null;
+    } else if (
+      e.pointerType === "touch" &&
+      panStart &&
+      panStart.pointerId === e.pointerId &&
+      start &&
+      Math.hypot(e.clientX - panStart.x, e.clientY - panStart.y) < TAP_MAX_MOVE
+    ) {
+      const now = performance.now();
+      lastTap = { t: now, x: e.clientX, y: e.clientY };
+      setTimeout(() => {
+        if (lastTap && performance.now() - lastTap.t >= DOUBLE_TAP_WINDOW) {
+          lastTap = null;
+        }
+      }, DOUBLE_TAP_WINDOW + 50);
+    }
+
+    if (pointers.size === 0) panStart = null;
+  };
+
+  let didInitialFit = false;
+  createEffect(() => {
+    const s = shapes();
+    if (!didInitialFit && s.width > 0 && canvasRef) {
+      didInitialFit = true;
+      queueMicrotask(centerFit);
+    }
+  });
+
+  createEffect(() => {
+    const n = props.fitRequest();
+    if (n > 0) centerFit();
+  });
+
+  return (
+    <div class="tree-pane">
+      <Show when={error()}>
+        {(err) => (
+          <div class="error">
+            <strong>{err().type}</strong>
+            <div>{err().message}</div>
+          </div>
+        )}
+      </Show>
+      <Show
+        when={!error() && shapes().shapes.length > 0}
+        fallback={
+          <Show when={!error()}>
+            <div class="empty">Add data to see the tree.</div>
+          </Show>
+        }
+      >
+        <div
+          class="canvas"
+          ref={canvasRef}
+          onWheel={onWheel}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <TreeSvg
+            shapes={shapes().shapes}
+            width={shapes().width}
+            height={shapes().height}
+            transform={`translate(${pan().x}px, ${pan().y}px) scale(${zoom()})`}
+          />
+        </div>
+      </Show>
+    </div>
+  );
+}

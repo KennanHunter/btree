@@ -1,35 +1,5 @@
 import { lower_bound_search } from "./bounds_searching";
-
-export type Event =
-  | {
-      t: "visit";
-      node: number;
-    }
-  | {
-      t: "follow";
-      from_node: number;
-      to_node: number;
-    }
-  | {
-      t: "assign";
-      parent: number;
-      data_index: number;
-      value: number;
-    }
-  | {
-      t: "assign_root";
-      // undefined means root node
-      value: number;
-    };
-
-export type TreeConfig = {
-  // must be at least 1 (really >= 2 to be useful). fanout = max children.
-  fanout: number;
-
-  insert_mode: "top_down" | "bottom_up";
-  search_mode: "linear" | "binary";
-  inner_nodes_have_data: boolean;
-};
+import type { TreeConfig } from "./config";
 
 export type Split = {
   median: number;
@@ -55,6 +25,20 @@ export class TreeNode {
 
   is_overflow(): boolean {
     return this.data_keys.length + 1 > this.tree.config.fanout;
+  }
+
+  /**
+   * @returns If value is in a tree node, return that tree node, if not, return the index
+   */
+  search_for_value(value: number): TreeNode | number | null {
+    let found_key = this.search_data_keys_for_lower_bound(value);
+
+    if (this.data_keys[found_key] == value) return found_key;
+
+    if (this.is_leaf_node()) return null;
+
+    // in b+ tree internal nodes, we need to make sure to go to the
+    return this.children[found_key];
   }
 
   /**
@@ -102,6 +86,10 @@ export class TreeNode {
     this.children[index].insert_top_down(value);
   }
 
+  is_leaf_node(): boolean {
+    return this.children.length === 0;
+  }
+
   insert_bottom_up(value: number): Split | null {
     let index = this.search_data_keys_for_lower_bound(value);
     if (index === -1) index = this.data_keys.length;
@@ -109,7 +97,7 @@ export class TreeNode {
     // unique keys
     if (this.data_keys[index] === value) return null;
 
-    const is_leaf_node = this.children.length === 0;
+    let is_leaf_node = this.is_leaf_node();
 
     if (is_leaf_node) {
       // inserts at index
@@ -173,23 +161,19 @@ export class Tree {
   root_node: TreeNode | undefined = undefined;
   config: TreeConfig;
 
-  populate(starting_values: number[]): Event[] {
+  populate(starting_values: number[]) {
     this.root_node = undefined;
-
-    const events: Event[] = [];
 
     for (const value of starting_values) {
       if (this.root_node === undefined) {
         this.root_node = new TreeNode(this, value);
 
-        events.push({
-          t: "assign_root",
-          value,
-        });
+        // events.push({
+        //   t: "assign_root",
+        //   value,
+        // });
       }
     }
-
-    return events;
   }
 
   insert(value: number) {
@@ -219,50 +203,43 @@ export class Tree {
     this.root_node = new_root;
   }
 
-  search(): Event[] {
-    return [{ t: "visit", node: 3 }];
+  search(value: number): SearchResult {
+    const search_path: TreeNode[] = [];
+
+    if (!this.root_node)
+      return {
+        type: "Missing",
+        path: [],
+        result: null,
+      };
+
+    search_path.push(this.root_node);
+
+    while (true) {
+      const result = search_path[-1].search_for_value(value);
+
+      if (typeof result === "number") {
+        return {
+          type: "Success",
+          path: search_path,
+          result,
+        };
+      }
+
+      if (result === null) {
+        return {
+          type: "Missing",
+          path: [],
+          result: null,
+        };
+      }
+
+      // must be a child tree node
+      search_path.push(result);
+    }
   }
 }
 
-export function create_b_tree(config: TreeConfig): TreeCreationResult {
-  if (config.fanout < 3) {
-    return {
-      error: true,
-      type: "FanoutTooLow",
-      message: "B Tree require a fanout of at least 3",
-    };
-  }
-
-  if (config.fanout % 2 === 1 && config.insert_mode == "top_down") {
-    return {
-      error: true,
-      type: "TopDownOddFanout",
-      message:
-        "B Tree's using the top down method must have an even fanout >= 4",
-    };
-  }
-
-  return {
-    error: false,
-    tree: new Tree(config),
-  };
-}
-
-export type TreeCreationResult =
-  | {
-      error: false;
-      tree: Tree;
-    }
-  | (TreeConfigurationError & {
-      error: true;
-    });
-
-export type TreeConfigurationError =
-  | {
-      type: "TopDownOddFanout";
-      message: string;
-    }
-  | {
-      type: "FanoutTooLow";
-      message: string;
-    };
+type SearchResult =
+  | { type: "Success"; path: TreeNode[]; result: number }
+  | { type: "Missing"; path: TreeNode[]; result: null };

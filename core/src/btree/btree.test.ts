@@ -1,10 +1,7 @@
-import { describe, it, expect } from "vitest";
-import {
-  create_b_tree,
-  TreeNode,
-  Tree,
-  type TreeConfig,
-} from "./btree.js";
+import { create_b_tree } from ".";
+import { TreeNode, type Tree } from "./btree";
+import type { TreeConfig } from "./config";
+import { expect, describe, it } from "vitest";
 
 function make_tree(overrides: Partial<TreeConfig> = {}): Tree {
   const config: TreeConfig = {
@@ -69,7 +66,7 @@ describe("create_b_tree", () => {
       fanout: 4,
       insert_mode: "top_down",
       inner_nodes_have_data: true,
-    search_mode: "binary",
+      search_mode: "binary",
     });
     expect(result.error).toBe(false);
     if (!result.error) {
@@ -83,7 +80,7 @@ describe("create_b_tree", () => {
       fanout: 2,
       insert_mode: "bottom_up",
       inner_nodes_have_data: true,
-    search_mode: "binary",
+      search_mode: "binary",
     });
     expect(result.error).toBe(true);
     if (result.error) expect(result.type).toBe("FanoutTooLow");
@@ -94,7 +91,7 @@ describe("create_b_tree", () => {
       fanout: 5,
       insert_mode: "top_down",
       inner_nodes_have_data: true,
-    search_mode: "binary",
+      search_mode: "binary",
     });
     expect(result.error).toBe(true);
     if (result.error) expect(result.type).toBe("TopDownOddFanout");
@@ -105,7 +102,7 @@ describe("create_b_tree", () => {
       fanout: 3,
       insert_mode: "bottom_up",
       inner_nodes_have_data: true,
-    search_mode: "binary",
+      search_mode: "binary",
     });
     expect(result.error).toBe(false);
   });
@@ -141,23 +138,23 @@ describe("Tree.insert", () => {
 
   it("keeps all leaves at the same depth (top_down)", () => {
     const tree = make_tree({ fanout: 4 });
-    for (const v of [10, 20, 5, 6, 12, 30, 7, 17, 11, 1, 2, 3])
-      tree.insert(v);
+    for (const v of [10, 20, 5, 6, 12, 30, 7, 17, 11, 1, 2, 3]) tree.insert(v);
     const depths = leaf_depths(tree.root_node!);
     expect(new Set(depths).size).toBe(1);
   });
 
   it("keeps all leaves at the same depth (bottom_up)", () => {
     const tree = make_tree({ fanout: 3, insert_mode: "bottom_up" });
-    for (const v of [10, 20, 5, 6, 12, 30, 7, 17, 11, 1, 2, 3])
-      tree.insert(v);
+    for (const v of [10, 20, 5, 6, 12, 30, 7, 17, 11, 1, 2, 3]) tree.insert(v);
     const depths = leaf_depths(tree.root_node!);
     expect(new Set(depths).size).toBe(1);
   });
 
   it("maintains sorted in-order traversal across many inserts (top_down)", () => {
     const tree = make_tree({ fanout: 4 });
-    const values = [50, 10, 70, 20, 40, 30, 60, 80, 5, 15, 25, 35, 45, 55, 65, 75];
+    const values = [
+      50, 10, 70, 20, 40, 30, 60, 80, 5, 15, 25, 35, 45, 55, 65, 75,
+    ];
     for (const v of values) tree.insert(v);
     const sorted = [...values].sort((a, b) => a - b);
     expect(keys_in_order(tree.root_node)).toEqual(sorted);

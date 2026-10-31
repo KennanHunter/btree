@@ -1,4 +1,4 @@
-import type { Tree } from "./btree.js";
+import type { Tree } from "./btree/btree.js";
 
 export function range(start: number, end: number): number[] {
   const out: number[] = [];
