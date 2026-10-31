@@ -14,10 +14,14 @@ export function shuffle(values: number[]): number[] {
   return values;
 }
 
-export function fill_sequential(tree: Tree, start: number, end: number) {
-  for (const v of range(start, end)) tree.insert(v);
+export function fill_sequential(tree: Tree, start: number, end: number): number[] {
+  const values = range(start, end);
+  for (const v of values) tree.insert(v);
+  return values;
 }
 
-export function fill_random(tree: Tree, start: number, end: number) {
-  for (const v of shuffle(range(start, end))) tree.insert(v);
+export function fill_random(tree: Tree, start: number, end: number): number[] {
+  const values = shuffle(range(start, end));
+  for (const v of values) tree.insert(v);
+  return values;
 }

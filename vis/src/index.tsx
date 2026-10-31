@@ -209,14 +209,12 @@ function App() {
 
   const [fillStart, setFillStart] = createSignal(1);
 
-  const runFill = (fn: (t: Tree, s: number, e: number) => void) => {
+  const runFill = (fn: (t: Tree, s: number, e: number) => number[]) => {
     const t = tree();
     if (!t) return;
     const start = fillStart();
     const end = start + 99;
-    fn(t, start, end);
-    const added: number[] = [];
-    for (let v = start; v <= end; v++) added.push(v);
+    const added = fn(t, start, end);
     setInitValues([...initValues(), ...added]);
     setFillStart(end + 1);
     setTick((n) => n + 1);
@@ -310,6 +308,9 @@ function App() {
 
   return (
     <div class="app" classList={{ "aside-open": asideOpen() }}>
+      <Show when={asideOpen()}>
+        <div class="aside-backdrop" onClick={() => setAsideOpen(false)} />
+      </Show>
       <main class="main" classList={{ "main-split": devMode() }}>
         <div class="tree-pane">
         <Show when={error()}>
@@ -399,11 +400,16 @@ function App() {
                   <pre>{JSON.stringify(initValues())}</pre>
                 </section>
                 <section>
+                  <h3>config</h3>
+                  <pre>{JSON.stringify(committed(), null, 2)}</pre>
+                </section>
+                <section>
                   <h3>tree</h3>
                   <pre>
                     {JSON.stringify(
                       tree(),
-                      (k, v) => (k === "tree" ? undefined : v),
+                      (k, v) =>
+                        k === "tree" || k === "config" ? undefined : v,
                       2,
                     )}
                   </pre>

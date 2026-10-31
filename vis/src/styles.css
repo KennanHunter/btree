@@ -29,6 +29,20 @@ body {
   display: none;
 }
 
+.aside-backdrop {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .aside-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 15;
+  }
+}
+
 @media (max-width: 720px) {
   .app {
     grid-template-columns: 1fr;
@@ -60,6 +74,11 @@ body {
 
   .dev-toggle:not(.aside-toggle) {
     right: auto !important;
+  }
+
+  .app.aside-open .dev-toggle:not(.aside-toggle),
+  .app.aside-open .github-btn {
+    display: none;
   }
 
   .github-btn {

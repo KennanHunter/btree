@@ -13,7 +13,7 @@ export type Event =
   | {
       t: "assign";
       parent: number;
-      child_index: number;
+      data_index: number;
       value: number;
     }
   | {
