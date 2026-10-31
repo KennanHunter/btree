@@ -267,23 +267,88 @@ function App() {
     setZoom(z1);
   };
 
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinchStart: {
+    dist: number;
+    midx: number;
+    midy: number;
+    zoom: number;
+    pan: { x: number; y: number };
+  } | null = null;
+  let panStart: {
+    pointerId: number;
+    x: number;
+    y: number;
+    pan: { x: number; y: number };
+  } | null = null;
+
   const onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
-    const start = pan();
-    const sx = e.clientX;
-    const sy = e.clientY;
-    const move = (me: PointerEvent) => {
-      setPan({ x: start.x + (me.clientX - sx), y: start.y + (me.clientY - sy) });
-    };
-    const up = (ue: PointerEvent) => {
-      target.releasePointerCapture(ue.pointerId);
-      target.removeEventListener("pointermove", move);
-      target.removeEventListener("pointerup", up);
-    };
-    target.addEventListener("pointermove", move);
-    target.addEventListener("pointerup", up);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 2) {
+      const el = canvasRef;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const pts = [...pointers.values()];
+      const dx = pts[0].x - pts[1].x;
+      const dy = pts[0].y - pts[1].y;
+      pinchStart = {
+        dist: Math.hypot(dx, dy),
+        midx: (pts[0].x + pts[1].x) / 2 - rect.left,
+        midy: (pts[0].y + pts[1].y) / 2 - rect.top,
+        zoom: zoom(),
+        pan: pan(),
+      };
+      panStart = null;
+    } else if (pointers.size === 1) {
+      panStart = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        pan: pan(),
+      };
+    }
+  };
+
+  const onPointerMove = (e: PointerEvent) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pinchStart && pointers.size === 2) {
+      const pts = [...pointers.values()];
+      const dx = pts[0].x - pts[1].x;
+      const dy = pts[0].y - pts[1].y;
+      const dist = Math.hypot(dx, dy);
+      const z0 = pinchStart.zoom;
+      const z1 = Math.max(0.05, Math.min(10, z0 * (dist / pinchStart.dist)));
+      const { midx, midy, pan: p0 } = pinchStart;
+      setPan({
+        x: midx - ((midx - p0.x) * z1) / z0,
+        y: midy - ((midy - p0.y) * z1) / z0,
+      });
+      setZoom(z1);
+      return;
+    }
+
+    if (panStart && panStart.pointerId === e.pointerId) {
+      setPan({
+        x: panStart.pan.x + (e.clientX - panStart.x),
+        y: panStart.pan.y + (e.clientY - panStart.y),
+      });
+    }
+  };
+
+  const onPointerUp = (e: PointerEvent) => {
+    const target = e.currentTarget as HTMLElement;
+    if (target.hasPointerCapture?.(e.pointerId)) {
+      target.releasePointerCapture(e.pointerId);
+    }
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+    if (pointers.size === 0) panStart = null;
   };
 
   const shapes = createMemo(() => {
@@ -334,6 +399,9 @@ function App() {
             ref={canvasRef}
             onWheel={onWheel}
             onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
           >
           <svg
             class="tree-svg"
