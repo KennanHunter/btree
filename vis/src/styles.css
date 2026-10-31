@@ -25,6 +25,56 @@ body {
   height: 100%;
 }
 
+.aside-toggle {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .app {
+    grid-template-columns: 1fr;
+  }
+
+  .aside {
+    position: fixed;
+    inset: 0 0 0 auto;
+    width: min(320px, 100vw);
+    transform: translateX(100%);
+    transition: transform 0.2s ease;
+    z-index: 20;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .app.aside-open .aside {
+    transform: translateX(0);
+  }
+
+  .aside-toggle {
+    display: flex;
+    right: 16px !important;
+    transition: transform 0.2s ease;
+  }
+
+  .app.aside-open .aside-toggle {
+    transform: translateX(calc(-1 * min(320px, 100vw)));
+  }
+
+  .dev-toggle:not(.aside-toggle) {
+    right: auto !important;
+  }
+
+  .github-btn {
+    left: 16px !important;
+  }
+
+  .center-btn {
+    left: 64px !important;
+  }
+
+  .dev-toggle:not(.aside-toggle):not(.github-btn):not(.center-btn) {
+    left: 112px !important;
+  }
+}
+
 .main {
   position: relative;
   overflow: hidden;

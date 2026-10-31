@@ -13,6 +13,7 @@ import "./styles.css";
 import CodeXML from "./icons/code_xml.svg";
 import FitScreen from "./icons/fit_screen.svg";
 import GitHub from "./icons/github-svgrepo-com.svg";
+import Hamburger from "./icons/hamburger.svg";
 
 
 const CELL_W = 48;
@@ -158,6 +159,7 @@ function App() {
   const [data, setData] = createSignal("");
   const [tick, setTick] = createSignal(0);
   const [devMode, setDevMode] = createSignal(false);
+  const [asideOpen, setAsideOpen] = createSignal(false);
   const [zoom, setZoom] = createSignal(1);
   const [pan, setPan] = createSignal({ x: 0, y: 0 });
   let canvasRef: HTMLDivElement | undefined;
@@ -307,7 +309,7 @@ function App() {
   });
 
   return (
-    <div class="app">
+    <div class="app" classList={{ "aside-open": asideOpen() }}>
       <main class="main" classList={{ "main-split": devMode() }}>
         <div class="tree-pane">
         <Show when={error()}>
@@ -511,6 +513,13 @@ function App() {
           </button>
         </section>
       </aside>
+      <button
+        class="dev-toggle aside-toggle"
+        onClick={() => setAsideOpen(!asideOpen())}
+        aria-label="Toggle controls"
+      >
+        <img src={Hamburger} alt="" />
+      </button>
       <a
         class="dev-toggle github-btn"
         href="https://github.com/kennanhunter/btree"
