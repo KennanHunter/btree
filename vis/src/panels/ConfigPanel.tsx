@@ -2,7 +2,8 @@ import { Show } from "solid-js";
 import { useTree, type ConfigDraft } from "../tree-context";
 
 export function ConfigPanel() {
-  const { draft, changed, anyChanged, setField, updateConfig } = useTree();
+  const { draft, changed, anyChanged, setField, draftError, updateConfig } =
+    useTree();
 
   const mark = (k: keyof ConfigDraft) =>
     changed(k) ? <span class="asterisk"> *</span> : null;
@@ -73,10 +74,18 @@ export function ConfigPanel() {
         If inner nodes hold data, it's a B-Tree. If they only hold separator
         keys and data lives in the leaves, it's a B+-Tree.
       </p>
+      <Show when={draftError()}>
+        {(err) => (
+          <div class="error error-inline">
+            <strong>{err().type}</strong>
+            <div>{err().message}</div>
+          </div>
+        )}
+      </Show>
       <button
         class="btn"
         onClick={updateConfig}
-        disabled={draft().fanout === null}
+        disabled={draft().fanout === null || draftError() !== undefined}
       >
         Update configuration
       </button>

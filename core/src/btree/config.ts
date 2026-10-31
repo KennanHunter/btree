@@ -23,7 +23,7 @@ export function check_config_for_errors(
   if (config.fanout < 3) {
     return {
       type: "FanoutTooLow",
-      message: "B Tree require a fanout of at least 3",
+      message: "B Tree requires a fanout of at least 3",
     };
   }
 

@@ -6,6 +6,7 @@ import {
   type JSX,
 } from "solid-js";
 import {
+  check_config_for_errors,
   create_b_tree,
   fill_random,
   fill_sequential,
@@ -60,6 +61,7 @@ type TreeContextValue = {
   setField: <K extends keyof ConfigDraft>(k: K, v: ConfigDraft[K]) => void;
   changed: (k: keyof ConfigDraft) => boolean;
   anyChanged: () => boolean;
+  draftError: Accessor<TreeConfigurationError | undefined>;
   updateConfig: () => void;
   insertValues: (values: number[]) => void;
   quickFillSequential: () => void;
@@ -88,6 +90,13 @@ export function TreeProvider(props: { children: JSX.Element }) {
   const changed = (k: keyof ConfigDraft) => draft()[k] !== committed()[k];
   const anyChanged = () =>
     (Object.keys(draft()) as (keyof ConfigDraft)[]).some((k) => changed(k));
+
+  const draftError = () => {
+    const d = draft();
+    if (d.fanout === null) return undefined;
+    const r = check_config_for_errors({ ...d, fanout: d.fanout });
+    return r === true ? undefined : r;
+  };
 
   const updateConfig = () => {
     const d = draft();
@@ -130,6 +139,7 @@ export function TreeProvider(props: { children: JSX.Element }) {
     setField,
     changed,
     anyChanged,
+    draftError,
     updateConfig,
     insertValues,
     quickFillSequential: () => runFill(fill_sequential),

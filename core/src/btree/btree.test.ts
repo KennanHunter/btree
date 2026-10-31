@@ -1,6 +1,6 @@
 import { create_b_tree } from ".";
 import { TreeNode, type Tree } from "./btree";
-import type { TreeConfig } from "./config";
+import { check_config_for_errors, type TreeConfig } from "./config";
 import { expect, describe, it } from "vitest";
 
 function make_tree(overrides: Partial<TreeConfig> = {}): Tree {
@@ -83,7 +83,10 @@ describe("create_b_tree", () => {
       search_mode: "binary",
     });
     expect(result.error).toBe(true);
-    if (result.error) expect(result.type).toBe("FanoutTooLow");
+    if (result.error) {
+      expect(result.type).toBe("FanoutTooLow");
+      expect(result.message).toBe("B Tree requires a fanout of at least 3");
+    }
   });
 
   it("errors when top_down uses an odd fanout", () => {
@@ -94,7 +97,12 @@ describe("create_b_tree", () => {
       search_mode: "binary",
     });
     expect(result.error).toBe(true);
-    if (result.error) expect(result.type).toBe("TopDownOddFanout");
+    if (result.error) {
+      expect(result.type).toBe("TopDownOddFanout");
+      expect(result.message).toBe(
+        "B Tree's using the top down method must have an even fanout >= 4",
+      );
+    }
   });
 
   it("allows bottom_up with odd fanout", () => {
@@ -105,6 +113,42 @@ describe("create_b_tree", () => {
       search_mode: "binary",
     });
     expect(result.error).toBe(false);
+  });
+});
+
+describe("check_config_for_errors", () => {
+  const base: TreeConfig = {
+    fanout: 4,
+    insert_mode: "top_down",
+    inner_nodes_have_data: true,
+    search_mode: "binary",
+  };
+
+  it("returns true for a valid config", () => {
+    expect(check_config_for_errors(base)).toBe(true);
+  });
+
+  it("flags fanout below 3", () => {
+    const r = check_config_for_errors({ ...base, fanout: 2, insert_mode: "bottom_up" });
+    expect(r).toEqual({
+      type: "FanoutTooLow",
+      message: "B Tree requires a fanout of at least 3",
+    });
+  });
+
+  it("flags top_down with odd fanout", () => {
+    const r = check_config_for_errors({ ...base, fanout: 5 });
+    expect(r).toEqual({
+      type: "TopDownOddFanout",
+      message:
+        "B Tree's using the top down method must have an even fanout >= 4",
+    });
+  });
+
+  it("allows bottom_up with odd fanout", () => {
+    expect(
+      check_config_for_errors({ ...base, fanout: 5, insert_mode: "bottom_up" }),
+    ).toBe(true);
   });
 });
 

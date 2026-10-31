@@ -1,22 +1,27 @@
-import { lower_bound_search } from "./bounds_searching";
+import {
+  AnimationIDGenerator,
+  type AnimationID,
+} from "../animation/id_generator";
+import { lower_bound_binary_search } from "./bounds_searching";
 import type { TreeConfig } from "./config";
+import type { BTreeEvent, BTreeEventRecorder } from "./events";
+
+export type Key = { id: AnimationID; value: number };
 
 export type Split = {
-  median: number;
+  median: Key;
   right: TreeNode;
 };
 
 export class TreeNode {
   tree: Tree;
-  data_keys: number[] = [];
+  data_keys: Key[] = [];
   children: TreeNode[] = [];
+  node_animation_id: AnimationID;
 
-  constructor(tree: Tree, ...values: number[]) {
+  constructor(tree: Tree) {
     this.tree = tree;
-
-    for (const value of values) {
-      this.data_keys.push(value);
-    }
+    this.node_animation_id = this.generate_animation_id();
   }
 
   is_full(): boolean {
@@ -33,7 +38,7 @@ export class TreeNode {
   search_for_value(value: number): TreeNode | number | null {
     let found_key = this.search_data_keys_for_lower_bound(value);
 
-    if (this.data_keys[found_key] == value) return found_key;
+    if (this.data_keys[found_key].value == value) return found_key;
 
     if (this.is_leaf_node()) return null;
 
@@ -46,25 +51,27 @@ export class TreeNode {
    */
   search_data_keys_for_lower_bound(search_input: number): number {
     if (this.tree.config.search_mode === "linear") {
-      let index = this.data_keys.findIndex((k) => search_input <= k);
+      let index = this.data_keys.findIndex((k) => search_input <= k.value);
 
       if (index === -1) return this.data_keys.length;
       return index;
     }
 
-    return lower_bound_search(this.data_keys, search_input);
+    return lower_bound_binary_search(this.data_keys, search_input);
   }
 
   insert_top_down(value: number) {
     let index = this.search_data_keys_for_lower_bound(value);
-    if (index === -1) index = this.data_keys.length;
 
     // unique keys
-    if (this.data_keys[index] === value) return;
+    if (this.data_keys[index].value === value) return;
 
     if (this.children.length === 0) {
       // inserts at index
-      this.data_keys.splice(index, 0, value);
+      this.data_keys.splice(index, 0, {
+        value,
+        id: this.generate_animation_id(),
+      });
       return;
     }
 
@@ -74,9 +81,9 @@ export class TreeNode {
       this.data_keys.splice(index, 0, median);
       this.children.splice(index + 1, 0, right);
 
-      if (value === median) return;
+      if (value === median.value) return;
 
-      if (value > median) {
+      if (value > median.value) {
         this.children[index + 1].insert_top_down(value);
 
         return;
@@ -92,16 +99,18 @@ export class TreeNode {
 
   insert_bottom_up(value: number): Split | null {
     let index = this.search_data_keys_for_lower_bound(value);
-    if (index === -1) index = this.data_keys.length;
 
     // unique keys
-    if (this.data_keys[index] === value) return null;
+    if (this.data_keys[index].value === value) return null;
 
     let is_leaf_node = this.is_leaf_node();
 
     if (is_leaf_node) {
       // inserts at index
-      this.data_keys.splice(index, 0, value);
+      this.data_keys.splice(index, 0, {
+        value,
+        id: this.generate_animation_id(),
+      });
     } else {
       const maybe_split = this.children[index].insert_bottom_up(value);
 
@@ -124,25 +133,30 @@ export class TreeNode {
 
     let right: TreeNode;
 
+    let median = this.data_keys[median_index];
+
     if (is_bplus_leaf) {
       // B+ leaf: right keeps the median; a copy goes up as the separator
-      right = new TreeNode(this.tree, ...this.data_keys.slice(median_index));
+      right = new TreeNode(this.tree);
+      right.data_keys = this.data_keys.slice(median_index);
+
+      // since we want to differentiate the copy that goes up as the seperator, we need a new animation id
+      median = {
+        value: median.value,
+        id: this.generate_animation_id(),
+      };
     } else {
       // B-tree node, or B+ internal node: the median moves up, so it's
       // left out of both halves
-      right = new TreeNode(
-        this.tree,
-        ...this.data_keys.slice(median_index + 1),
-      );
+      right = new TreeNode(this.tree);
+      right.data_keys = this.data_keys.slice(median_index + 1);
     }
 
     right.children = this.children.slice(median_index + 1);
 
     // get the median
 
-    const median = this.data_keys[median_index];
-
-    // turn this into the left
+    // turn this current node into the left
     this.data_keys = this.data_keys.slice(0, median_index);
     this.children = this.children.slice(0, median_index + 1);
 
@@ -151,34 +165,42 @@ export class TreeNode {
       right,
     };
   }
+
+  generate_animation_id(): AnimationID {
+    return this.tree.animation_id_generator.allocate_id();
+  }
+
+  record(event: BTreeEvent) {
+    this.tree.event_recorder.record(event);
+  }
 }
 
 export class Tree {
-  constructor(config: TreeConfig) {
+  constructor(config: TreeConfig, event_recorder: BTreeEventRecorder) {
     this.config = config;
+    this.event_recorder = event_recorder;
   }
 
-  root_node: TreeNode | undefined = undefined;
   config: TreeConfig;
+  event_recorder: BTreeEventRecorder;
+
+  root_node: TreeNode | undefined = undefined;
+  animation_id_generator: AnimationIDGenerator = new AnimationIDGenerator();
 
   populate(starting_values: number[]) {
     this.root_node = undefined;
 
     for (const value of starting_values) {
-      if (this.root_node === undefined) {
-        this.root_node = new TreeNode(this, value);
-
-        // events.push({
-        //   t: "assign_root",
-        //   value,
-        // });
-      }
+      this.insert(value);
     }
   }
 
   insert(value: number) {
     if (!this.root_node) {
-      this.root_node = new TreeNode(this, value);
+      this.root_node = new TreeNode(this);
+      this.root_node.data_keys = [
+        { value, id: this.animation_id_generator.allocate_id() },
+      ];
       return;
     }
 
@@ -198,7 +220,10 @@ export class Tree {
   }
 
   private grow_root({ median, right }: Split) {
-    const new_root = new TreeNode(this, median);
+    const new_root = new TreeNode(this);
+
+    new_root.data_keys = [median];
+
     new_root.children = [this.root_node!, right];
     this.root_node = new_root;
   }
@@ -216,7 +241,7 @@ export class Tree {
     search_path.push(this.root_node);
 
     while (true) {
-      const result = search_path[-1].search_for_value(value);
+      const result = search_path.at(-1)!.search_for_value(value);
 
       if (typeof result === "number") {
         return {

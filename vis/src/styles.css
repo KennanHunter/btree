@@ -156,6 +156,11 @@ body {
   letter-spacing: 0.05em;
 }
 
+.error-inline {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
 .init-list {
   font-size: 12px;
   color: #9a9a9a;
