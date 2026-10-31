@@ -10,6 +10,11 @@ import {
 } from "core";
 import "./styles.css";
 
+import CodeXML from "./icons/code_xml.svg";
+import FitScreen from "./icons/fit_screen.svg";
+import GitHub from "./icons/github-svgrepo-com.svg";
+
+
 const CELL_W = 48;
 const CELL_H = 32;
 const H_GAP = 24;
@@ -120,6 +125,7 @@ function draw(laid: Laid, x: number, y: number, out: Shape[]) {
 type ConfigDraft = {
   fanout: number | null;
   insert_mode: "top_down" | "bottom_up";
+  search_mode: "linear" | "binary";
   inner_nodes_have_data: boolean;
 };
 
@@ -141,6 +147,7 @@ function build(
 const DEFAULT_CONFIG: ConfigDraft = {
   fanout: 4,
   insert_mode: "top_down",
+  search_mode: "binary",
   inner_nodes_have_data: true,
 };
 
@@ -301,7 +308,8 @@ function App() {
 
   return (
     <div class="app">
-      <main class="main">
+      <main class="main" classList={{ "main-split": devMode() }}>
+        <div class="tree-pane">
         <Show when={error()}>
           {(err) => (
             <div class="error">
@@ -310,33 +318,10 @@ function App() {
             </div>
           )}
         </Show>
-        <Show when={devMode()}>
-          {(() => {
-            tick();
-            return (
-              <div class="dev">
-                <section>
-                  <h3>init values ({initValues().length})</h3>
-                  <pre>{JSON.stringify(initValues())}</pre>
-                </section>
-                <section>
-                  <h3>tree</h3>
-                  <pre>
-                    {JSON.stringify(
-                      tree(),
-                      (k, v) => (k === "tree" ? undefined : v),
-                      2,
-                    )}
-                  </pre>
-                </section>
-              </div>
-            );
-          })()}
-        </Show>
         <Show
-          when={!devMode() && !error() && shapes().shapes.length > 0}
+          when={!error() && shapes().shapes.length > 0}
           fallback={
-            <Show when={!devMode() && !error()}>
+            <Show when={!error()}>
               <div class="empty">Add data to see the tree.</div>
             </Show>
           }
@@ -401,6 +386,30 @@ function App() {
           </svg>
           </div>
         </Show>
+        </div>
+        <Show when={devMode()}>
+          {(() => {
+            tick();
+            return (
+              <div class="dev">
+                <section>
+                  <h3>init values ({initValues().length})</h3>
+                  <pre>{JSON.stringify(initValues())}</pre>
+                </section>
+                <section>
+                  <h3>tree</h3>
+                  <pre>
+                    {JSON.stringify(
+                      tree(),
+                      (k, v) => (k === "tree" ? undefined : v),
+                      2,
+                    )}
+                  </pre>
+                </section>
+              </div>
+            );
+          })()}
+        </Show>
       </main>
       <aside class="aside">
         <section class="section">
@@ -437,6 +446,21 @@ function App() {
             >
               <option value="top_down">top_down</option>
               <option value="bottom_up">bottom_up</option>
+            </select>
+          </label>
+          <label>
+            <span>Search mode{mark("search_mode")}</span>
+            <select
+              value={draft().search_mode}
+              onChange={(e) =>
+                setField(
+                  "search_mode",
+                  e.currentTarget.value as "linear" | "binary",
+                )
+              }
+            >
+              <option value="binary">binary</option>
+              <option value="linear">linear</option>
             </select>
           </label>
           <label class="checkbox">
@@ -487,12 +511,21 @@ function App() {
           </button>
         </section>
       </aside>
+      <a
+        class="dev-toggle github-btn"
+        href="https://github.com/kennanhunter/btree"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="GitHub"
+      >
+        <img src={GitHub} alt="" />
+      </a>
       <button
         class="dev-toggle center-btn"
         onClick={centerFit}
         title="Center and fit"
       >
-        ⊡
+        <img src={FitScreen} alt="" />
       </button>
       <button
         class="dev-toggle"
@@ -500,7 +533,7 @@ function App() {
         onClick={() => setDevMode(!devMode())}
         title="Toggle developer view"
       >
-        {"</>"}
+        <img src={CodeXML} alt="" />
       </button>
     </div>
   );

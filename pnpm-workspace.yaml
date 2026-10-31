@@ -3,3 +3,4 @@ packages:
   - 'vis'
 allowBuilds:
   esbuild: true
+  workerd: true

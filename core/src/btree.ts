@@ -1,3 +1,5 @@
+import { lower_bound_search } from "./bounds_searching";
+
 export type Event =
   | {
       t: "visit";
@@ -25,6 +27,7 @@ export type TreeConfig = {
   fanout: number;
 
   insert_mode: "top_down" | "bottom_up";
+  search_mode: "linear" | "binary";
   inner_nodes_have_data: boolean;
 };
 
@@ -54,8 +57,22 @@ export class TreeNode {
     return this.data_keys.length + 1 > this.tree.config.fanout;
   }
 
+  /**
+   * @returns the left index of the input value
+   */
+  search_data_keys_for_lower_bound(search_input: number): number {
+    if (this.tree.config.search_mode === "linear") {
+      let index = this.data_keys.findIndex((k) => search_input <= k);
+
+      if (index === -1) return this.data_keys.length;
+      return index;
+    }
+
+    return lower_bound_search(this.data_keys, search_input);
+  }
+
   insert_top_down(value: number) {
-    let index = this.data_keys.findIndex((k) => value <= k);
+    let index = this.search_data_keys_for_lower_bound(value);
     if (index === -1) index = this.data_keys.length;
 
     // unique keys
@@ -86,7 +103,7 @@ export class TreeNode {
   }
 
   insert_bottom_up(value: number): Split | null {
-    let index = this.data_keys.findIndex((k) => value <= k);
+    let index = this.search_data_keys_for_lower_bound(value);
     if (index === -1) index = this.data_keys.length;
 
     // unique keys

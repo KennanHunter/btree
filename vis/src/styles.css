@@ -28,6 +28,24 @@ body {
 .main {
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.main-split .tree-pane {
+  flex: 1 1 55%;
+}
+
+.main-split .dev {
+  flex: 1 1 45%;
+  border-top: 1px solid #333;
+}
+
+.tree-pane {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 16px;
 }
 
@@ -99,6 +117,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 16px;
+  overflow: auto;
+  min-height: 0;
+  background: #1b1b1b;
 }
 
 .dev section {
@@ -124,12 +146,38 @@ body {
   font-size: 12px;
   color: #d4d4d4;
   overflow: auto;
-  max-height: 60vh;
 }
 
 .center-btn {
   right: 384px !important;
-  font-size: 18px !important;
+}
+
+.github-btn {
+  right: 432px !important;
+  text-decoration: none;
+}
+
+.dev-toggle {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dev-toggle img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  padding: 8px;
+  box-sizing: border-box;
+  filter: brightness(0) invert(1);
+  opacity: 0.75;
+}
+
+.dev-toggle:hover img {
+  opacity: 1;
+}
+
+.dev-toggle.active img {
+  opacity: 1;
 }
 
 .dev-toggle {

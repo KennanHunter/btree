@@ -11,6 +11,7 @@ function make_tree(overrides: Partial<TreeConfig> = {}): Tree {
     fanout: 4,
     insert_mode: "top_down",
     inner_nodes_have_data: true,
+    search_mode: "binary",
     ...overrides,
   };
   const result = create_b_tree(config);
@@ -68,6 +69,7 @@ describe("create_b_tree", () => {
       fanout: 4,
       insert_mode: "top_down",
       inner_nodes_have_data: true,
+    search_mode: "binary",
     });
     expect(result.error).toBe(false);
     if (!result.error) {
@@ -81,6 +83,7 @@ describe("create_b_tree", () => {
       fanout: 2,
       insert_mode: "bottom_up",
       inner_nodes_have_data: true,
+    search_mode: "binary",
     });
     expect(result.error).toBe(true);
     if (result.error) expect(result.type).toBe("FanoutTooLow");
@@ -91,6 +94,7 @@ describe("create_b_tree", () => {
       fanout: 5,
       insert_mode: "top_down",
       inner_nodes_have_data: true,
+    search_mode: "binary",
     });
     expect(result.error).toBe(true);
     if (result.error) expect(result.type).toBe("TopDownOddFanout");
@@ -101,6 +105,7 @@ describe("create_b_tree", () => {
       fanout: 3,
       insert_mode: "bottom_up",
       inner_nodes_have_data: true,
+    search_mode: "binary",
     });
     expect(result.error).toBe(false);
   });
