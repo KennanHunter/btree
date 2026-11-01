@@ -15,6 +15,7 @@ import { TreeCanvas } from "./viz/TreeCanvas";
 import { LeftPanel } from "./left_panel/LeftPanel";
 import { RightPanel } from "./right_panel/RightPanel";
 import { DevPanel } from "./dev_panel/DevPanel";
+import { AppShell } from "./layout/AppShell";
 import "./styles/tokens.css";
 import "./styles/reset.css";
 import "./styles.css";
@@ -33,7 +34,7 @@ import { ViewControls } from "./ViewControls";
 function PlaybackControls() {
   const { isPlaying, togglePlay, stepBack, stepForward } = usePlayback();
   return (
-    <div class="playback-controls">
+    <>
       <button
         class="dev-toggle"
         onClick={stepBack}
@@ -58,7 +59,7 @@ function PlaybackControls() {
       >
         <AiFillStepForward />
       </button>
-    </div>
+    </>
   );
 }
 
@@ -78,32 +79,28 @@ function App() {
   };
 
   return (
-    <div
-      class="app"
-      classList={{ "aside-open": asideOpen(), "dev-mode": devMode() }}
-    >
-      <Show when={asideOpen()}>
-        <div class="aside-backdrop" onClick={() => setAsideOpen(false)} />
-      </Show>
-      <aside class="aside-left" classList={{ "left-tall": leftTab() === "info" }}>
-        <LeftPanel />
-      </aside>
-      <main class="main" classList={{ "main-split": devMode() }}>
-        <TreeCanvas
-          fitRequest={fitTick}
-          autoFit={autoFit}
-          onUserInteract={() => autoFit() && setAutoFit(false)}
-        />
-        <Show when={devMode()}>
-          <DevPanel />
-        </Show>
-      </main>
-      <PlaybackControls />
-      <aside class="aside">
-        <RightPanel />
-      </aside>
-      <div class="icon-row">
-        <div class="icon-row-left">
+    <AppShell
+      devMode={devMode()}
+      asideOpen={asideOpen()}
+      leftTall={leftTab() === "info"}
+      mainSplit={devMode()}
+      onBackdropClick={() => setAsideOpen(false)}
+      left={<LeftPanel />}
+      main={
+        <>
+          <TreeCanvas
+            fitRequest={fitTick}
+            autoFit={autoFit}
+            onUserInteract={() => autoFit() && setAutoFit(false)}
+          />
+          <Show when={devMode()}>
+            <DevPanel />
+          </Show>
+        </>
+      }
+      right={<RightPanel />}
+      iconsLeft={
+        <>
           <a
             class="dev-toggle github-btn"
             href="https://github.com/kennanhunter/btree"
@@ -123,27 +120,30 @@ function App() {
           >
             <AiOutlineCode />
           </button>
-        </div>
-        <div class="icon-row-right">
-          <ViewControls
-            autoFit={autoFit}
-            toggleAutoFit={() => {
-              const next = !autoFit();
-              setAutoFit(next);
-              if (next) setFitTick((n) => n + 1);
-            }}
-          />
-        </div>
+        </>
+      }
+      iconsRight={
+        <ViewControls
+          autoFit={autoFit}
+          toggleAutoFit={() => {
+            const next = !autoFit();
+            setAutoFit(next);
+            if (next) setFitTick((n) => n + 1);
+          }}
+        />
+      }
+      asideToggle={
         <button
-          class="dev-toggle aside-toggle"
+          class="dev-toggle"
           classList={{ shake: !hasOpenedSidePanel() && hasCreatedTree() }}
           onClick={toggleAside}
           aria-label="Toggle controls"
         >
           <AiOutlineMenu />
         </button>
-      </div>
-    </div>
+      }
+      playback={<PlaybackControls />}
+    />
   );
 }
 

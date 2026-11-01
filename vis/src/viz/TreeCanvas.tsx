@@ -8,6 +8,7 @@ import {
 import { useTree } from "../tree-context";
 import { buildShapes, type Shape } from "./layout";
 import { TreeSvg } from "./TreeSvg";
+import { shellLayout } from "../layout/AppShell";
 
 type Props = {
   fitRequest: () => number;
@@ -278,7 +279,7 @@ export function TreeCanvas(props: Props) {
   });
 
   return (
-    <div class="tree-pane" ref={paneRef}>
+    <div class={shellLayout.treePane} ref={paneRef}>
       <Show when={error()}>
         {(err) => (
           <div class="error">
