@@ -1,4 +1,6 @@
 import { useTree } from "../tree-context";
+import section from "../ui/Section.module.css";
+import styles from "./StatsTab.module.css";
 
 export function StatsTab() {
   const { tree, tick, initValues, committed, recorderState } = useTree();
@@ -31,24 +33,24 @@ export function StatsTab() {
   };
 
   return (
-    <section class="section stats">
-      <div class="stat">
+    <section class={`${section.section} ${styles.stats}`}>
+      <div class={styles.stat}>
         <span>Keys</span>
         <strong>{initValues().length}</strong>
       </div>
-      <div class="stat">
+      <div class={styles.stat}>
         <span>Nodes</span>
         <strong>{countNodes()}</strong>
       </div>
-      <div class="stat">
+      <div class={styles.stat}>
         <span>Depth</span>
         <strong>{computeDepth()}</strong>
       </div>
-      <div class="stat">
+      <div class={styles.stat}>
         <span>Fanout</span>
         <strong>{committed().fanout ?? "—"}</strong>
       </div>
-      <div class="stat">
+      <div class={styles.stat}>
         <span>Operations</span>
         <strong>{recorderState().history.length}</strong>
       </div>

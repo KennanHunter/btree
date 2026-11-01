@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { useTree } from "../tree-context";
 import { Button } from "../ui/Button";
+import section from "../ui/Section.module.css";
 
 export function InsertTab() {
   const {
@@ -23,7 +24,7 @@ export function InsertTab() {
   };
 
   return (
-    <section class="section">
+    <section class={section.section}>
       <textarea
         rows="4"
         placeholder="e.g. 5, 2, 8.1, 1"

@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { useTree } from "../tree-context";
 import { Button } from "../ui/Button";
+import section from "../ui/Section.module.css";
 
 export function SearchTab() {
   const { tree } = useTree();
@@ -21,7 +22,7 @@ export function SearchTab() {
   };
 
   return (
-    <section class="section">
+    <section class={section.section}>
       <label>
         <span>Value</span>
         <input
@@ -33,7 +34,7 @@ export function SearchTab() {
       <Button onClick={doSearch} disabled={value() === ""}>
         Search
       </Button>
-      {result() && <p class="hint">{result()}</p>}
+      {result() && <p class={section.hint}>{result()}</p>}
     </section>
   );
 }

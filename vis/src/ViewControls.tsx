@@ -1,5 +1,6 @@
 import { FiMaximize } from "solid-icons/fi";
 import { AiOutlineAim } from "solid-icons/ai";
+import styles from "./ViewControls.module.css";
 
 type Props = {
   autoFit: () => boolean;
@@ -13,18 +14,18 @@ export function ViewControls(props: Props) {
   };
 
   return (
-    <div class="view-pill">
+    <div class={styles.pill}>
       <div
-        class="view-pill-highlight"
+        class={styles.highlight}
         classList={{
-          hidden: highlightIndex() === null,
-          slot0: highlightIndex() === 0,
-          slot1: highlightIndex() === 1,
+          [styles.hidden]: highlightIndex() === null,
+          [styles.slot0]: highlightIndex() === 0,
+          [styles.slot1]: highlightIndex() === 1,
         }}
       />
       <button
-        class="view-pill-btn"
-        classList={{ active: props.autoFit() }}
+        class={styles.btn}
+        classList={{ [styles.active]: props.autoFit() }}
         onClick={props.toggleAutoFit}
         title="Center and fit"
         aria-label="Center and fit"
@@ -32,7 +33,7 @@ export function ViewControls(props: Props) {
         <FiMaximize />
       </button>
       <button
-        class="view-pill-btn"
+        class={styles.btn}
         disabled
         title="Follow animation (coming soon)"
         aria-label="Follow animation"

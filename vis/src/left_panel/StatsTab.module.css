@@ -1,0 +1,21 @@
+.stats {
+    gap: 6px;
+}
+
+.stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 10px;
+    background: var(--panel-sunken);
+    border: 1px solid var(--border-sunken);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-dim);
+}
+
+.stat strong {
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+    font-size: 14px;
+}

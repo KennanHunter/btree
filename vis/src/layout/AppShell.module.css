@@ -35,9 +35,13 @@
     flex: 1 1 55%;
 }
 
-.mainSplit :global(.dev) {
+.mainSplit .devPane {
     flex: 1 1 45%;
     border-top: 1px solid var(--border-strong);
+}
+
+.devPane {
+    min-height: 0;
 }
 
 .treePane {

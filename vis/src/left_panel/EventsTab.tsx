@@ -1,6 +1,7 @@
 import { For, onMount } from "solid-js";
 import type { BTreeEvent } from "core";
 import { MAX_SPEED, MIN_SPEED, usePlayback } from "../playback-context";
+import styles from "./EventsTab.module.css";
 
 const describe = (e: BTreeEvent) => {
   switch (e.t) {
@@ -40,10 +41,10 @@ export function EventsTab() {
   onMount(() => setTotal(FAKE_EVENTS.length));
 
   return (
-    <div class="events-tab">
-      <label class="speed-slider">
-        <span class="speed-label">
-          Speed <span class="speed-value">{speed()} ev/s</span>
+    <div class={styles.tab}>
+      <label class={styles.speedSlider}>
+        <span class={styles.speedLabel}>
+          Speed <span class={styles.speedValue}>{speed()} ev/s</span>
         </span>
         <input
           type="range"
@@ -54,13 +55,13 @@ export function EventsTab() {
           onInput={(e) => setSpeed(Number(e.currentTarget.value))}
         />
       </label>
-      <ol class="events-list">
+      <ol class={styles.list}>
         <For each={FAKE_EVENTS}>
           {(e, i) => (
-            <li data-t={e.t} classList={{ active: i() === index() }}>
-              <span class="events-idx">{i() + 1}</span>
-              <span class="events-tag">{e.t}</span>
-              <span class="events-desc">{describe(e)}</span>
+            <li data-t={e.t} classList={{ [styles.active]: i() === index() }}>
+              <span class={styles.idx}>{i() + 1}</span>
+              <span class={styles.tag}>{e.t}</span>
+              <span class={styles.desc}>{describe(e)}</span>
             </li>
           )}
         </For>

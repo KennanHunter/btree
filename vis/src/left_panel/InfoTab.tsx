@@ -3,6 +3,8 @@ import { useLocalStorage } from "../local-storage-context";
 import { useLeftPanel } from "./left-panel-context";
 import { AiOutlineAim } from "solid-icons/ai";
 import { Button } from "../ui/Button";
+import section from "../ui/Section.module.css";
+import styles from "./InfoTab.module.css";
 
 export function InfoTab() {
   const { setField, updateConfig, insertValues, clearData } = useTree();
@@ -22,7 +24,7 @@ export function InfoTab() {
   };
 
   return (
-    <section class="section info">
+    <section class={`${section.section} ${styles.info}`}>
       <p>
         B-trees run in almost every database. I built this as a visualizer to
         verify the animations I have in my{" "}
@@ -32,13 +34,13 @@ export function InfoTab() {
         Create 2-3 B tree
       </Button>
       <p>
-        If you want to look at a big tree, use the <AiOutlineAim  />{" "}
+        If you want to look at a big tree, use the <AiOutlineAim />{" "}
         icon to follow the animation.
       </p>
-      <p class="info-mobile">
+      <p class={styles.mobileOnly}>
         Open the side panel for insert, search, and config.
       </p>
-      <p class="info-desktop">
+      <p class={styles.desktopOnly}>
         Use the side panel for insert, search, and config.
       </p>
       <p>
@@ -53,7 +55,7 @@ export function InfoTab() {
         .
       </p>
 
-      <aside class="info-ad">
+      <aside class={styles.ad}>
         <p>
           <b>Hiring?</b> I’m a Rust engineer who’s built real-time pipelines at
           30k+ events/sec over billions of rows. US-based, open to remote or

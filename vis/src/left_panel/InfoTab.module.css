@@ -1,0 +1,60 @@
+.info {
+    gap: 12px;
+}
+
+.info p {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--text-strong);
+}
+
+.info a {
+    color: var(--link);
+}
+
+.info p svg {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.15em;
+    margin: 0 2px;
+    color: var(--text);
+}
+
+/* Responsive content toggles: show one copy of a message per viewport. */
+.mobileOnly {
+    display: none;
+}
+
+@media (max-width: 700px) {
+    .mobileOnly {
+        display: block;
+    }
+    .desktopOnly {
+        display: none;
+    }
+}
+
+.ad {
+    margin-top: 8px;
+    padding: 12px 14px 20px;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--panel-sunken);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ad p {
+    font-size: 14px;
+    color: #c0c0c0;
+}
+
+.ad code {
+    background: var(--surface);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}

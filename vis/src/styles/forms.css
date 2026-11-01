@@ -1,0 +1,30 @@
+/* Global form element baseline. Applies to bare <input>, <textarea>, <select>
+ * so individual tab components don't need to wire these up. */
+
+input,
+textarea {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
+input:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+select {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 14px;
+}

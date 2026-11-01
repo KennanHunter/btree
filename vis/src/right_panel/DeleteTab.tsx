@@ -1,11 +1,12 @@
 import { createSignal } from "solid-js";
 import { Button } from "../ui/Button";
+import section from "../ui/Section.module.css";
 
 export function DeleteTab() {
   const [value, setValue] = createSignal("");
 
   return (
-    <section class="section">
+    <section class={section.section}>
       <label>
         <span>Value</span>
         <input
@@ -15,7 +16,7 @@ export function DeleteTab() {
         />
       </label>
       <Button disabled>Delete</Button>
-      <p class="hint">Delete isn't wired up yet.</p>
+      <p class={section.hint}>Delete isn't wired up yet.</p>
     </section>
   );
 }

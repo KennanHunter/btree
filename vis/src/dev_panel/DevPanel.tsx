@@ -1,9 +1,11 @@
 import { useTree } from "../tree-context";
+import { shellLayout } from "../layout/AppShell";
+import styles from "./DevPanel.module.css";
 
 export function DevPanel() {
   const { initValues, committed, tree, tick, recorderState } = useTree();
   return (
-    <div class="dev">
+    <div class={`${styles.panel} ${shellLayout.devPane}`}>
       {(() => {
         tick();
         const rs = recorderState();

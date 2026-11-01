@@ -19,6 +19,7 @@ import { AppShell } from "./layout/AppShell";
 import { IconButton, IconLink } from "./ui/IconButton";
 import "./styles/tokens.css";
 import "./styles/reset.css";
+import "./styles/forms.css";
 import "./styles.css";
 
 import {

@@ -1,0 +1,93 @@
+.tab {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+.speedSlider {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.speedLabel {
+    display: flex;
+    justify-content: space-between;
+}
+
+.speedValue {
+    color: var(--text);
+    font-family: ui-monospace, monospace;
+}
+
+.speedSlider input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    padding: 0;
+    background: transparent;
+    border: 0;
+}
+
+.list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    overflow: auto;
+    min-height: 0;
+    font-size: 12px;
+    font-family: ui-monospace, monospace;
+}
+
+.list li {
+    display: grid;
+    grid-template-columns: 18px 56px 1fr;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 6px 3px 8px;
+    background: var(--panel-sunken);
+    border: 1px solid var(--border-sunken);
+    border-left-width: 3px;
+    border-radius: var(--radius-sm);
+}
+
+.list li.active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+}
+
+.list li[data-t="visit"] { border-left-color: var(--evt-visit); }
+.list li[data-t="compare"] { border-left-color: var(--evt-compare); }
+.list li[data-t="descend"] { border-left-color: var(--evt-descend); }
+.list li[data-t="ascend"] { border-left-color: var(--evt-ascend); }
+.list li[data-t="found"] { border-left-color: var(--evt-found); }
+.list li[data-t="not_found"] { border-left-color: var(--evt-not-found); }
+
+.idx {
+    color: var(--text-disabled);
+    text-align: right;
+}
+
+.tag {
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+}
+
+.list li[data-t="visit"] .tag { color: var(--evt-visit); }
+.list li[data-t="compare"] .tag { color: var(--evt-compare); }
+.list li[data-t="descend"] .tag { color: var(--evt-descend); }
+.list li[data-t="ascend"] .tag { color: var(--evt-ascend); }
+.list li[data-t="found"] .tag { color: var(--evt-found); }
+.list li[data-t="not_found"] .tag { color: var(--evt-not-found); }
+
+.desc {
+    color: var(--text-strong);
+    word-break: break-word;
+}

@@ -54,4 +54,5 @@ export function AppShell(props: {
  * but is a sibling component that needs the padded/positioned container. */
 export const shellLayout = {
   treePane: styles.treePane,
+  devPane: styles.devPane,
 };
