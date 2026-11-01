@@ -35,7 +35,7 @@ export function InfoTab() {
         Create 2-3 B tree
       </button>
       <p>
-        If you want to look at a big tree, use the <AiOutlineAim  />
+        If you want to look at a big tree, use the <AiOutlineAim  />{" "}
         icon to follow the animation.
       </p>
       <p class="info-mobile">
