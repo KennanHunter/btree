@@ -307,7 +307,10 @@ export class Tree {
       }
     })();
 
-    const operation = this.event_recorder.rollup_operation("search");
+    const operation = this.event_recorder.rollup_operation(
+      "search",
+      this.snapshot(),
+    );
 
     return { result, operation };
   }

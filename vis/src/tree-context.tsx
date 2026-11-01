@@ -16,6 +16,13 @@ import {
   type Tree,
   type TreeConfigurationError,
 } from "core";
+import {
+  DEFAULT_CONFIG,
+  useLocalStorage,
+  type ConfigDraft,
+} from "./local-storage-context";
+
+export { DEFAULT_CONFIG, type ConfigDraft } from "./local-storage-context";
 
 type RecorderState = {
   current: BTreeEvent[];
@@ -44,28 +51,14 @@ function create_recorder(): ReactiveRecorder {
       current = [];
       publish();
     },
-    rollup_operation(type) {
-      const op: BTreeOperation = { type, events: [...current] };
+    rollup_operation(type, snapshot) {
+      const op: BTreeOperation = { type, events: [...current], snapshot };
       history = [...history, op];
       publish();
       return op;
     },
   };
 }
-
-export type ConfigDraft = {
-  fanout: number | null;
-  insert_mode: "top_down" | "bottom_up";
-  search_mode: "linear" | "binary";
-  inner_nodes_have_data: boolean;
-};
-
-export const DEFAULT_CONFIG: ConfigDraft = {
-  fanout: 4,
-  insert_mode: "top_down",
-  search_mode: "binary",
-  inner_nodes_have_data: true,
-};
 
 function build(
   config_draft: ConfigDraft,
@@ -114,9 +107,14 @@ type TreeContextValue = {
 const TreeContext = createContext<TreeContextValue>();
 
 export function TreeProvider(props: { children: JSX.Element }) {
-  const [draft, setDraft] = createSignal<ConfigDraft>(DEFAULT_CONFIG);
-  const [committed, setCommitted] = createSignal<ConfigDraft>(DEFAULT_CONFIG);
-  const [initValues, setInitValues] = createSignal<number[]>([]);
+  const {
+    treeConfig: committed,
+    setTreeConfig,
+    initValues,
+    setInitValues,
+  } = useLocalStorage();
+
+  const [draft, setDraft] = createSignal<ConfigDraft>(committed());
   const [tick, setTick] = createSignal(0);
   const [fillStart, setFillStart] = createSignal(1);
 
@@ -146,7 +144,7 @@ export function TreeProvider(props: { children: JSX.Element }) {
     const { tree: t, error: e } = build(d, initValues(), event_recorder);
     setTree(t);
     setError(e);
-    setCommitted(d);
+    setTreeConfig(d);
     setTick((n) => n + 1);
   };
 

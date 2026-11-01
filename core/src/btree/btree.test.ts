@@ -22,8 +22,8 @@ function noop_recorder(): BTreeEventRecorder {
     clear() {
       events = [];
     },
-    rollup_operation(type): BTreeOperation {
-      const op = { type, events: [...events] };
+    rollup_operation(type, snapshot): BTreeOperation {
+      const op = { type, events: [...events], snapshot };
       events = [];
       return op;
     },

@@ -1,5 +1,5 @@
-import { createSignal } from "solid-js";
 import { useTree } from "../tree-context";
+import { useLocalStorage } from "../local-storage-context";
 import { Button } from "../ui/Button";
 import section from "../ui/Section.module.css";
 
@@ -12,15 +12,15 @@ export function InsertTab() {
     quickFillRandom,
     clearData,
   } = useTree();
-  const [data, setData] = createSignal("");
+  const { insertText, setInsertText } = useLocalStorage();
 
   const addData = () => {
-    const values = data()
+    const values = insertText()
       .split(",")
       .map((s) => parseFloat(s.trim()))
       .filter((n) => !Number.isNaN(n));
     insertValues(values);
-    setData("");
+    setInsertText("");
   };
 
   return (
@@ -28,8 +28,8 @@ export function InsertTab() {
       <textarea
         rows="4"
         placeholder="e.g. 5, 2, 8.1, 1"
-        value={data()}
-        onInput={(e) => setData(e.currentTarget.value)}
+        value={insertText()}
+        onInput={(e) => setInsertText(e.currentTarget.value)}
       />
       <Button onClick={addData}>Insert</Button>
       <Button variant="secondary" onClick={quickFillSequential}>

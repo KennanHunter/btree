@@ -1,18 +1,16 @@
-import { createSignal } from "solid-js";
 import { ConfigTab } from "./ConfigTab";
 import { InsertTab } from "./InsertTab";
 import { SearchTab } from "./SearchTab";
 import { DeleteTab } from "./DeleteTab";
 import { TabbedPanel } from "../ui/TabbedPanel";
-
-type Tab = "config" | "insert" | "search" | "delete";
+import { useLocalStorage } from "../local-storage-context";
 
 export function RightPanel() {
-  const [tab, setTab] = createSignal<Tab>("insert");
+  const { rightTab, setRightTab } = useLocalStorage();
   return (
     <TabbedPanel
-      active={tab()}
-      setActive={setTab}
+      active={rightTab()}
+      setActive={setRightTab}
       tabs={[
         { id: "config", label: "Config", render: () => <ConfigTab /> },
         { id: "insert", label: "Insert", render: () => <InsertTab /> },

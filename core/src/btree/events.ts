@@ -37,5 +37,8 @@ export type BTreeOperation = {
 export interface BTreeEventRecorder {
   record(event: BTreeEvent): void;
   clear(): void;
-  rollup_operation(type: BTreeOperation["type"]): BTreeOperation;
+  rollup_operation(
+    type: BTreeOperation["type"],
+    snapshot: Snapshot,
+  ): BTreeOperation;
 }

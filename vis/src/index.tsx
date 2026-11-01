@@ -62,7 +62,7 @@ function App() {
   const [devMode, setDevMode] = createSignal(false);
   const [asideOpen, setAsideOpen] = createSignal(false);
   const [fitTick, setFitTick] = createSignal(0);
-  const [autoFit, setAutoFit] = createSignal(false);
+  const [autoFit, setAutoFit] = createSignal(true);
   const { tab: leftTab } = useLeftPanel();
   const { hasOpenedSidePanel, markSidePanelOpened, hasCreatedTree } =
     useLocalStorage();

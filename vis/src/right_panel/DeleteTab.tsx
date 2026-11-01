@@ -1,9 +1,9 @@
-import { createSignal } from "solid-js";
+import { useLocalStorage } from "../local-storage-context";
 import { Button } from "../ui/Button";
 import section from "../ui/Section.module.css";
 
 export function DeleteTab() {
-  const [value, setValue] = createSignal("");
+  const { deleteText, setDeleteText } = useLocalStorage();
 
   return (
     <section class={section.section}>
@@ -11,8 +11,8 @@ export function DeleteTab() {
         <span>Value</span>
         <input
           type="number"
-          value={value()}
-          onInput={(e) => setValue(e.currentTarget.value)}
+          value={deleteText()}
+          onInput={(e) => setDeleteText(e.currentTarget.value)}
         />
       </label>
       <Button disabled>Delete</Button>

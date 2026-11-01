@@ -238,12 +238,23 @@ export function TreeCanvas(props: Props) {
   };
 
   let didInitialFit = false;
+
+  const tryInitialFit = () => {
+    if (didInitialFit) return;
+    if (!canvasRef || canvasRef.clientWidth === 0) return;
+    if (shapes().width === 0) return;
+    centerFit();
+    didInitialFit = true;
+  };
+
+  const attachCanvas = (el: HTMLDivElement) => {
+    canvasRef = el;
+    requestAnimationFrame(tryInitialFit);
+  };
+
   createEffect(() => {
-    const s = shapes();
-    if (!didInitialFit && s.width > 0 && canvasRef) {
-      didInitialFit = true;
-      queueMicrotask(centerFit);
-    }
+    shapes();
+    tryInitialFit();
   });
 
   createEffect(() => {
@@ -257,6 +268,7 @@ export function TreeCanvas(props: Props) {
   createEffect(() => {
     const s = shapes();
     if (!props.autoFit() || s.width === 0 || !canvasRef) return;
+    if (!didInitialFit) return;
     bumpSmooth();
     queueMicrotask(centerFit);
   });
@@ -298,7 +310,7 @@ export function TreeCanvas(props: Props) {
       >
         <div
           class="canvas"
-          ref={canvasRef}
+          ref={attachCanvas}
           onWheel={onWheel}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

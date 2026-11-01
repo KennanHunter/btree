@@ -54,7 +54,7 @@ export function InfoTab() {
       <aside class={styles.ad}>
         <p>
           <b>Hiring?</b> I’m a Rust engineer who’s owned startup backends end to
-          end, including real-time pipelines at 30k+ events/sec over billions of
+          end, including high-throughput real-time pipelines over billions of
           rows. US-based, open to remote or relocation, full-time or contract.
         </p>
         <p>

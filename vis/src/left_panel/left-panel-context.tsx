@@ -1,12 +1,7 @@
-import {
-  createContext,
-  createSignal,
-  useContext,
-  type Accessor,
-  type JSX,
-} from "solid-js";
+import { createContext, useContext, type Accessor, type JSX } from "solid-js";
+import { useLocalStorage, type LeftTab } from "../local-storage-context";
 
-export type LeftTab = "info" | "events" | "stats";
+export type { LeftTab } from "../local-storage-context";
 
 type LeftPanelContextValue = {
   tab: Accessor<LeftTab>;
@@ -16,9 +11,9 @@ type LeftPanelContextValue = {
 const LeftPanelContext = createContext<LeftPanelContextValue>();
 
 export function LeftPanelProvider(props: { children: JSX.Element }) {
-  const [tab, setTab] = createSignal<LeftTab>("info");
+  const { leftTab, setLeftTab } = useLocalStorage();
   return (
-    <LeftPanelContext.Provider value={{ tab, setTab }}>
+    <LeftPanelContext.Provider value={{ tab: leftTab, setTab: setLeftTab }}>
       {props.children}
     </LeftPanelContext.Provider>
   );
