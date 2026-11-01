@@ -16,6 +16,7 @@ import { LeftPanel } from "./left_panel/LeftPanel";
 import { RightPanel } from "./right_panel/RightPanel";
 import { DevPanel } from "./dev_panel/DevPanel";
 import { AppShell } from "./layout/AppShell";
+import { IconButton, IconLink } from "./ui/IconButton";
 import "./styles/tokens.css";
 import "./styles/reset.css";
 import "./styles.css";
@@ -35,30 +36,23 @@ function PlaybackControls() {
   const { isPlaying, togglePlay, stepBack, stepForward } = usePlayback();
   return (
     <>
-      <button
-        class="dev-toggle"
-        onClick={stepBack}
-        title="Step back"
-        aria-label="Step back"
-      >
+      <IconButton onClick={stepBack} title="Step back" aria-label="Step back">
         <AiFillStepBackward />
-      </button>
-      <button
-        class="dev-toggle"
+      </IconButton>
+      <IconButton
         onClick={togglePlay}
         title={isPlaying() ? "Pause" : "Play"}
         aria-label={isPlaying() ? "Pause" : "Play"}
       >
         {isPlaying() ? <AiOutlinePause /> : <FaSolidPlay />}
-      </button>
-      <button
-        class="dev-toggle"
+      </IconButton>
+      <IconButton
         onClick={stepForward}
         title="Step forward"
         aria-label="Step forward"
       >
         <AiFillStepForward />
-      </button>
+      </IconButton>
     </>
   );
 }
@@ -101,8 +95,7 @@ function App() {
       right={<RightPanel />}
       iconsLeft={
         <>
-          <a
-            class="dev-toggle github-btn"
+          <IconLink
             href="https://github.com/kennanhunter/btree"
             target="_blank"
             rel="noopener noreferrer"
@@ -110,16 +103,15 @@ function App() {
             aria-label="GitHub"
           >
             <FiGithub />
-          </a>
-          <button
-            class="dev-toggle"
-            classList={{ active: devMode() }}
+          </IconLink>
+          <IconButton
+            active={devMode()}
             onClick={() => setDevMode(!devMode())}
             title="Toggle developer view"
             aria-label="Toggle developer view"
           >
             <AiOutlineCode />
-          </button>
+          </IconButton>
         </>
       }
       iconsRight={
@@ -133,14 +125,13 @@ function App() {
         />
       }
       asideToggle={
-        <button
-          class="dev-toggle"
-          classList={{ shake: !hasOpenedSidePanel() && hasCreatedTree() }}
+        <IconButton
+          shake={!hasOpenedSidePanel() && hasCreatedTree()}
           onClick={toggleAside}
           aria-label="Toggle controls"
         >
           <AiOutlineMenu />
-        </button>
+        </IconButton>
       }
       playback={<PlaybackControls />}
     />

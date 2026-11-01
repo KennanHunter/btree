@@ -2,6 +2,7 @@ import { useTree } from "../tree-context";
 import { useLocalStorage } from "../local-storage-context";
 import { useLeftPanel } from "./left-panel-context";
 import { AiOutlineAim } from "solid-icons/ai";
+import { Button } from "../ui/Button";
 
 export function InfoTab() {
   const { setField, updateConfig, insertValues, clearData } = useTree();
@@ -27,13 +28,9 @@ export function InfoTab() {
         verify the animations I have in my{" "}
         <a href="https://kennan.dev">deep dive article</a>
       </p>
-      <button
-        class="btn"
-        classList={{ shake: !hasCreatedTree() }}
-        onClick={createDemo}
-      >
+      <Button shake={!hasCreatedTree()} onClick={createDemo}>
         Create 2-3 B tree
-      </button>
+      </Button>
       <p>
         If you want to look at a big tree, use the <AiOutlineAim  />{" "}
         icon to follow the animation.

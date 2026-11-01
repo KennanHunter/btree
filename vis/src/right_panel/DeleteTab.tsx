@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { Button } from "../ui/Button";
 
 export function DeleteTab() {
   const [value, setValue] = createSignal("");
@@ -13,9 +14,7 @@ export function DeleteTab() {
           onInput={(e) => setValue(e.currentTarget.value)}
         />
       </label>
-      <button class="btn" disabled>
-        Delete
-      </button>
+      <Button disabled>Delete</Button>
       <p class="hint">Delete isn't wired up yet.</p>
     </section>
   );

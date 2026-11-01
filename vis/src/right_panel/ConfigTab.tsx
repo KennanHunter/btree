@@ -1,5 +1,6 @@
 import { Show } from "solid-js";
 import { useTree, type ConfigDraft } from "../tree-context";
+import { Button } from "../ui/Button";
 
 export function ConfigTab() {
   const { draft, changed, anyChanged, setField, draftError, updateConfig } =
@@ -74,13 +75,12 @@ export function ConfigTab() {
       >
         {anyChanged() ? "unapplied changes" : "changes up to date"}
       </span>
-      <button
-        class="btn"
+      <Button
         onClick={updateConfig}
         disabled={draft().fanout === null || draftError() !== undefined}
       >
         Update configuration
-      </button>
+      </Button>
       <Show when={draftError()}>
         {(err) => (
           <div class="error error-inline">

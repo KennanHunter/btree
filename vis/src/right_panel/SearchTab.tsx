@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { useTree } from "../tree-context";
+import { Button } from "../ui/Button";
 
 export function SearchTab() {
   const { tree } = useTree();
@@ -29,9 +30,9 @@ export function SearchTab() {
           onInput={(e) => setValue(e.currentTarget.value)}
         />
       </label>
-      <button class="btn" onClick={doSearch} disabled={value() === ""}>
+      <Button onClick={doSearch} disabled={value() === ""}>
         Search
-      </button>
+      </Button>
       {result() && <p class="hint">{result()}</p>}
     </section>
   );

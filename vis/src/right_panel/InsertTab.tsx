@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import { useTree } from "../tree-context";
+import { Button } from "../ui/Button";
 
 export function InsertTab() {
   const {
@@ -29,22 +30,20 @@ export function InsertTab() {
         value={data()}
         onInput={(e) => setData(e.currentTarget.value)}
       />
-      <button class="btn" onClick={addData}>
-        Insert
-      </button>
-      <button class="btn btn-secondary" onClick={quickFillSequential}>
+      <Button onClick={addData}>Insert</Button>
+      <Button variant="secondary" onClick={quickFillSequential}>
         Quick fill {fillStart()}–{fillStart() + 99} sequential
-      </button>
-      <button class="btn btn-secondary" onClick={quickFillRandom}>
+      </Button>
+      <Button variant="secondary" onClick={quickFillRandom}>
         Quick fill {fillStart()}–{fillStart() + 99} random
-      </button>
-      <button
-        class="btn btn-secondary"
+      </Button>
+      <Button
+        variant="secondary"
         onClick={clearData}
         disabled={initValues().length === 0}
       >
         Clear data
-      </button>
+      </Button>
     </section>
   );
 }

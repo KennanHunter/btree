@@ -1,0 +1,60 @@
+.btn {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    font-family: ui-monospace, monospace;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-pop);
+    text-decoration: none;
+}
+
+.btn svg {
+    width: 20px;
+    height: 20px;
+    color: var(--text);
+    opacity: 0.75;
+}
+
+.btn:hover svg,
+.btn.active svg {
+    opacity: 1;
+}
+
+.btn:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.btn.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+@keyframes gentleShake {
+    0%,
+    85%,
+    100% {
+        transform: translateY(0);
+    }
+    90% {
+        transform: translateY(-4px);
+    }
+    95% {
+        transform: translateY(2px);
+    }
+}
+
+.shake {
+    animation: gentleShake 2.4s ease-in-out infinite;
+}

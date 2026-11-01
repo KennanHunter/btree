@@ -106,10 +106,6 @@
     overflow: auto;
 }
 
-.github-btn {
-    text-decoration: none;
-}
-
 .view-pill {
     position: relative;
     height: 40px;
@@ -181,48 +177,6 @@
     opacity: 0.35;
 }
 
-.dev-toggle {
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    overflow: hidden;
-    border-radius: 50%;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-dim);
-    font-family: ui-monospace, monospace;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: var(--shadow-pop);
-}
-
-.dev-toggle svg {
-    width: 20px;
-    height: 20px;
-    color: var(--text);
-    opacity: 0.75;
-}
-
-.dev-toggle:hover svg,
-.dev-toggle.active svg {
-    opacity: 1;
-}
-
-.dev-toggle:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-}
-
-.dev-toggle.active {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-}
-
 .hint {
     margin: 0;
     font-size: 12px;
@@ -247,56 +201,6 @@ select {
     height: 100%;
     color: var(--text-disabled);
     font-size: 14px;
-}
-
-.side-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 12px;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
-}
-
-.tabs {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-
-.tab {
-    flex: 1 1 0;
-    min-width: 0;
-    background: var(--surface);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 6px 10px;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-}
-
-.tab:hover {
-    background: var(--surface-hover);
-    color: var(--text);
-}
-
-.tab.active {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-}
-
-.tab-body {
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
 }
 
 .events-tab {
@@ -364,31 +268,6 @@ select {
     .info-desktop {
         display: none;
     }
-}
-
-@keyframes gentle-shake {
-    0%,
-    85%,
-    100% {
-        transform: translateY(0);
-    }
-    90% {
-        transform: translateY(-4px);
-    }
-    95% {
-        transform: translateY(2px);
-    }
-}
-
-.shake {
-    animation: gentle-shake 2.4s ease-in-out infinite;
-}
-
-.btn-sub {
-    margin-top: -4px !important;
-    text-align: center;
-    font-size: 12px !important;
-    color: var(--text-faint) !important;
 }
 
 .info-ad {
@@ -608,42 +487,4 @@ input:focus,
 textarea:focus {
     outline: none;
     border-color: var(--accent);
-}
-
-.btn {
-    background: var(--accent);
-    color: white;
-    border: 0;
-    border-radius: var(--radius);
-    padding: 10px 14px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.btn:hover {
-    background: var(--accent-hover);
-}
-
-.btn:active {
-    background: var(--accent-active);
-}
-
-.btn-secondary {
-    background: var(--surface);
-    border: 1px solid var(--border);
-}
-
-.btn-secondary:hover {
-    background: var(--surface-hover);
-}
-
-.btn-secondary:active {
-    background: var(--surface-active);
-}
-
-.btn:disabled {
-    background: var(--border-sunken);
-    color: var(--text-disabled);
-    cursor: not-allowed;
 }

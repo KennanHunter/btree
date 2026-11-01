@@ -1,0 +1,62 @@
+.btn {
+    background: var(--accent);
+    color: white;
+    border: 0;
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background: var(--accent-hover);
+}
+
+.btn:active {
+    background: var(--accent-active);
+}
+
+.btn:disabled {
+    background: var(--border-sunken);
+    color: var(--text-disabled);
+    cursor: not-allowed;
+}
+
+.secondary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+}
+
+.secondary:hover {
+    background: var(--surface-hover);
+}
+
+.secondary:active {
+    background: var(--surface-active);
+}
+
+.subtle {
+    margin-top: -4px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-faint);
+}
+
+@keyframes gentleShake {
+    0%,
+    85%,
+    100% {
+        transform: translateY(0);
+    }
+    90% {
+        transform: translateY(-4px);
+    }
+    95% {
+        transform: translateY(2px);
+    }
+}
+
+.shake {
+    animation: gentleShake 2.4s ease-in-out infinite;
+}
