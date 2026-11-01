@@ -27,7 +27,7 @@ export const MAX_SPEED = 5;
 
 export function PlaybackProvider(props: { children: JSX.Element }) {
   const [isPlaying, setIsPlaying] = createSignal(false);
-  const [speed, setSpeed] = createSignal(1);
+  const [speed, setSpeed] = createSignal(2);
   const [index, setIndex] = createSignal(0);
   const [total, setTotal] = createSignal(0);
 

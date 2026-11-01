@@ -1,17 +1,39 @@
-import { createEffect, createMemo, createSignal, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  Show,
+} from "solid-js";
 import { useTree } from "../tree-context";
 import { buildShapes, type Shape } from "./layout";
 import { TreeSvg } from "./TreeSvg";
 
 type Props = {
   fitRequest: () => number;
+  autoFit: () => boolean;
+  onUserInteract?: () => void;
 };
+
+const MIN_FIT_WIDTH = 600;
+const MIN_FIT_HEIGHT = 400;
 
 export function TreeCanvas(props: Props) {
   const { tree, error, tick } = useTree();
   const [zoom, setZoom] = createSignal(1);
   const [pan, setPan] = createSignal({ x: 0, y: 0 });
+  const [smooth, setSmooth] = createSignal(false);
   let canvasRef: HTMLDivElement | undefined;
+  let paneRef: HTMLDivElement | undefined;
+  let smoothTimer: number | undefined;
+
+  const bumpSmooth = () => {
+    setSmooth(true);
+    if (smoothTimer !== undefined) window.clearTimeout(smoothTimer);
+    smoothTimer = window.setTimeout(() => setSmooth(false), 350);
+  };
+
+  const notifyInteract = () => props.onUserInteract?.();
 
   const shapes = createMemo(() => {
     tick();
@@ -26,8 +48,10 @@ export function TreeCanvas(props: Props) {
     const s = shapes();
     if (!el || s.width === 0 || s.height === 0) return;
     const padding = 32;
-    const sx = (el.clientWidth - padding) / (s.width + 16);
-    const sy = (el.clientHeight - padding) / (s.height + 16);
+    const effW = Math.max(s.width + 16, MIN_FIT_WIDTH);
+    const effH = Math.max(s.height + 16, MIN_FIT_HEIGHT);
+    const sx = (el.clientWidth - padding) / effW;
+    const sy = (el.clientHeight - padding) / effH;
     const z = Math.min(sx, sy, 1);
     const w = (s.width + 16) * z;
     const h = (s.height + 16) * z;
@@ -40,6 +64,7 @@ export function TreeCanvas(props: Props) {
 
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    notifyInteract();
     const el = canvasRef;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -84,6 +109,7 @@ export function TreeCanvas(props: Props) {
 
   const onPointerDown = (e: PointerEvent) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
+    notifyInteract();
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -221,11 +247,38 @@ export function TreeCanvas(props: Props) {
 
   createEffect(() => {
     const n = props.fitRequest();
-    if (n > 0) centerFit();
+    if (n > 0) {
+      bumpSmooth();
+      centerFit();
+    }
+  });
+
+  createEffect(() => {
+    const s = shapes();
+    if (!props.autoFit() || s.width === 0 || !canvasRef) return;
+    bumpSmooth();
+    queueMicrotask(centerFit);
+  });
+
+  createEffect(() => {
+    const el = paneRef;
+    if (!el) return;
+    let first = true;
+    const ro = new ResizeObserver(() => {
+      if (first) {
+        first = false;
+        return;
+      }
+      if (!props.autoFit()) return;
+      bumpSmooth();
+      centerFit();
+    });
+    ro.observe(el);
+    onCleanup(() => ro.disconnect());
   });
 
   return (
-    <div class="tree-pane">
+    <div class="tree-pane" ref={paneRef}>
       <Show when={error()}>
         {(err) => (
           <div class="error">
@@ -256,6 +309,7 @@ export function TreeCanvas(props: Props) {
             width={shapes().width}
             height={shapes().height}
             transform={`translate(${pan().x}px, ${pan().y}px) scale(${zoom()})`}
+            smooth={smooth()}
           />
         </div>
       </Show>

@@ -1,10 +1,6 @@
 import { For, onMount } from "solid-js";
 import type { BTreeEvent } from "core";
-import {
-  MAX_SPEED,
-  MIN_SPEED,
-  usePlayback,
-} from "../playback-context";
+import { MAX_SPEED, MIN_SPEED, usePlayback } from "../playback-context";
 
 const describe = (e: BTreeEvent) => {
   switch (e.t) {
@@ -39,28 +35,25 @@ const FAKE_EVENTS: BTreeEvent[] = [
   { t: "found", node: 6, key: 11 },
 ];
 
-export function EventsPanel() {
-  const { speed, setSpeed, setTotal, index } = usePlayback();
+export function EventsTab() {
+  const { setTotal, index, speed, setSpeed } = usePlayback();
   onMount(() => setTotal(FAKE_EVENTS.length));
 
   return (
-    <div class="events-panel">
-      <div class="events-header">
-        <h2>Events</h2>
-        <label class="speed-slider">
-          <span class="speed-label">
-            Speed <span class="speed-value">{speed()} ev/s</span>
-          </span>
-          <input
-            type="range"
-            min={MIN_SPEED}
-            max={MAX_SPEED}
-            step={1}
-            value={speed()}
-            onInput={(e) => setSpeed(Number(e.currentTarget.value))}
-          />
-        </label>
-      </div>
+    <div class="events-tab">
+      <label class="speed-slider">
+        <span class="speed-label">
+          Speed <span class="speed-value">{speed()} ev/s</span>
+        </span>
+        <input
+          type="range"
+          min={MIN_SPEED}
+          max={MAX_SPEED}
+          step={1}
+          value={speed()}
+          onInput={(e) => setSpeed(Number(e.currentTarget.value))}
+        />
+      </label>
       <ol class="events-list">
         <For each={FAKE_EVENTS}>
           {(e, i) => (

@@ -1,0 +1,38 @@
+import { createSignal } from "solid-js";
+import { useTree } from "../tree-context";
+
+export function SearchTab() {
+  const { tree } = useTree();
+  const [value, setValue] = createSignal("");
+  const [result, setResult] = createSignal<string | null>(null);
+
+  const doSearch = () => {
+    const n = parseFloat(value());
+    if (Number.isNaN(n)) return;
+    const t = tree();
+    if (!t) return setResult("tree not ready");
+    try {
+      const r = t.search(n);
+      setResult(r.result.type === "Success" ? `found ${n}` : `not found: ${n}`);
+    } catch (e) {
+      setResult(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  return (
+    <section class="section">
+      <label>
+        <span>Value</span>
+        <input
+          type="number"
+          value={value()}
+          onInput={(e) => setValue(e.currentTarget.value)}
+        />
+      </label>
+      <button class="btn" onClick={doSearch} disabled={value() === ""}>
+        Search
+      </button>
+      {result() && <p class="hint">{result()}</p>}
+    </section>
+  );
+}

@@ -6,12 +6,14 @@ type Props = {
   width: number;
   height: number;
   transform?: string;
+  smooth?: boolean;
 };
 
 export function TreeSvg(props: Props) {
   return (
     <svg
       class="tree-svg"
+      classList={{ smooth: props.smooth }}
       xmlns="http://www.w3.org/2000/svg"
       width={props.width + 16}
       height={props.height + 16}
@@ -39,7 +41,7 @@ export function TreeSvg(props: Props) {
                 y={s.y}
                 fill="#e8e8e8"
                 font-size="14"
-                font-family="system-ui, sans-serif"
+                font-family="Helvetica, Helvetica Neue, Arial, sans-serif"
                 text-anchor="middle"
                 dominant-baseline="central"
               >

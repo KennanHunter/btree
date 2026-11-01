@@ -1,6 +1,6 @@
 import { useTree } from "../tree-context";
 
-export function DevPane() {
+export function DevPanel() {
   const { initValues, committed, tree, tick, recorderState } = useTree();
   return (
     <div class="dev">

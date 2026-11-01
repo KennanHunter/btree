@@ -1,7 +1,7 @@
 import { createSignal } from "solid-js";
 import { useTree } from "../tree-context";
 
-export function DataPanel() {
+export function InsertTab() {
   const {
     initValues,
     fillStart,
@@ -23,7 +23,6 @@ export function DataPanel() {
 
   return (
     <section class="section">
-      <h2>Add data</h2>
       <textarea
         rows="4"
         placeholder="e.g. 5, 2, 8.1, 1"
@@ -31,7 +30,7 @@ export function DataPanel() {
         onInput={(e) => setData(e.currentTarget.value)}
       />
       <button class="btn" onClick={addData}>
-        Add data
+        Insert
       </button>
       <button class="btn btn-secondary" onClick={quickFillSequential}>
         Quick fill {fillStart()}–{fillStart() + 99} sequential
