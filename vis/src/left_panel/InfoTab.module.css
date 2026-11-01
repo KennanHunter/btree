@@ -29,7 +29,7 @@
 
 @media (max-width: 700px) {
     .mobileOnly {
-        display: block;
+        display: inline;
     }
     .desktopOnly {
         display: none;
@@ -55,6 +55,7 @@
 .ad code {
     background: var(--surface);
     padding: 2px 6px;
+    padding-bottom: 5px;
     border-radius: var(--radius-sm);
     font-size: 13px;
 }

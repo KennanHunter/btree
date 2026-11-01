@@ -26,22 +26,18 @@ export function InfoTab() {
   return (
     <section class={`${section.section} ${styles.info}`}>
       <p>
-        B-trees run in almost every database. I built this as a visualizer to
-        verify the animations I have in my{" "}
-        <a href="https://kennan.dev">deep dive article</a>
+        B-trees power almost every database. This is the interactive companion
+        and development environment for my{" "}
+        <a href="https://kennan.dev">deep dive article</a>.
       </p>
       <Button shake={!hasCreatedTree()} onClick={createDemo}>
         Create 2-3 B tree
       </Button>
       <p>
-        If you want to look at a big tree, use the <AiOutlineAim />{" "}
-        icon to follow the animation.
-      </p>
-      <p class={styles.mobileOnly}>
-        Open the side panel for insert, search, and config.
-      </p>
-      <p class={styles.desktopOnly}>
-        Use the side panel for insert, search, and config.
+        <span class={styles.desktopOnly}>Open</span>
+        <span class={styles.mobileOnly}>Use</span> the side panel to insert,
+        search, and change the config. For big trees, click <AiOutlineAim /> to
+        keep the camera on the animation.
       </p>
       <p>
         Source on{" "}
@@ -57,19 +53,13 @@ export function InfoTab() {
 
       <aside class={styles.ad}>
         <p>
-          <b>Hiring?</b> I’m a Rust engineer who’s built real-time pipelines at
-          30k+ events/sec over billions of rows. US-based, open to remote or
-          relocation, full-time or contract.
+          <b>Hiring?</b> I’m a Rust engineer who’s owned startup backends end to
+          end, including real-time pipelines at 30k+ events/sec over billions of
+          rows. US-based, open to remote or relocation, full-time or contract.
         </p>
         <p>
           <a href="mailto:contact@kennan.dev">
-            <code
-              style={{
-                "padding-bottom": "5px",
-              }}
-            >
-              contact@kennan.dev
-            </code>
+            <code>contact@kennan.dev</code>
           </a>
         </p>
       </aside>
