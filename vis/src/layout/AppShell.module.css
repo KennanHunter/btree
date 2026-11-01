@@ -97,8 +97,23 @@
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     z-index: 10;
+}
+
+.playbackRow {
+    display: flex;
+    gap: 8px;
+}
+
+.playbackCounter {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    user-select: none;
 }
 
 /* === Desktop ≥ 701px === */

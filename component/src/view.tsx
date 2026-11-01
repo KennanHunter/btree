@@ -401,6 +401,14 @@ const COLOR = {
 // transform between the old and new values.
 const MOVE_TRANSITION = "transform var(--step, 400ms) ease";
 
+// Rect geometry + stroke/fill transition. SVG 2 exposes width/height as CSS
+// properties; setting them via inline style (not just the attribute) is what
+// opts us into CSS transitions on Chrome / recent Firefox.
+const RECT_TRANSITION =
+  "width var(--step, 400ms) ease, height var(--step, 400ms) ease, " +
+  "fill var(--step, 400ms) ease, stroke var(--step, 400ms) ease, " +
+  "stroke-width var(--step, 400ms) ease";
+
 // Child-pointer slot — one per child under an internal node. Carries the
 // same fill/stroke pair as the key cell so the midlines read as a single
 // row of boxes rather than a bare divider.
@@ -419,6 +427,11 @@ function SlotView(props: { slot: SlotBox }) {
         fill={COLOR.node_fill}
         stroke={COLOR.node_stroke}
         stroke-width={1}
+        style={{
+          width: `${props.slot.w}px`,
+          height: `${props.slot.h}px`,
+          transition: RECT_TRANSITION,
+        }}
       />
     </g>
   );
@@ -441,6 +454,11 @@ function NodeView(props: { box: NodeBox; state: State }) {
         fill={active() ? COLOR.active_fill : COLOR.node_fill}
         stroke={active() ? COLOR.active_stroke : COLOR.node_stroke}
         stroke-width={active() ? 1.5 : 1}
+        style={{
+          width: `${props.box.w}px`,
+          height: `${props.box.h}px`,
+          transition: RECT_TRANSITION,
+        }}
       />
     </g>
   );
@@ -463,6 +481,11 @@ function KeyView(props: { keyBox: KeyBox; state: State }) {
         fill={active() ? COLOR.active_fill : COLOR.node_fill}
         stroke={active() ? COLOR.active_stroke : COLOR.node_stroke}
         stroke-width={active() ? 1.5 : 1}
+        style={{
+          width: `${props.keyBox.w}px`,
+          height: `${props.keyBox.h}px`,
+          transition: RECT_TRANSITION,
+        }}
       />
       <text
         x={props.keyBox.w / 2}

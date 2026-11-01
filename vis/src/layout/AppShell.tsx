@@ -55,4 +55,6 @@ export function AppShell(props: {
 export const shellLayout = {
   treePane: styles.treePane,
   devPane: styles.devPane,
+  playbackRow: styles.playbackRow,
+  playbackCounter: styles.playbackCounter,
 };

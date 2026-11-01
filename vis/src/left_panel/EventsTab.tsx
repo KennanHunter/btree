@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createEffect, createSignal, For, Show } from "solid-js";
 import type { BTreeEvent } from "component";
 import { useTree } from "../tree-context";
 import { MAX_SPEED, MIN_SPEED, usePlayback } from "../playback-context";
@@ -58,6 +58,16 @@ export function EventsTab() {
     }, 200);
   };
 
+  // Keep the active row centered in the list. Lookup by data-step attribute
+  // so we don't have to track per-item refs through <For> rerenders.
+  let listRef: HTMLOListElement | undefined;
+  createEffect(() => {
+    const h = highlighted();
+    if (!listRef) return;
+    const el = listRef.querySelector<HTMLElement>(`[data-step="${h}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
+
   return (
     <div class={styles.tab}>
       <label class={styles.speedSlider}>
@@ -78,11 +88,12 @@ export function EventsTab() {
         fallback={<p class={styles.empty}>No operation yet.</p>}
       >
         {(op) => (
-          <ol class={styles.list}>
+          <ol class={styles.list} ref={listRef}>
             <For each={op().steps}>
               {(step, i) => (
                 <li
                   data-t={step.event.t}
+                  data-step={i()}
                   classList={{ [styles.active]: i() === highlighted() }}
                   onClick={() => jumpTo(i())}
                 >

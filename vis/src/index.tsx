@@ -15,7 +15,7 @@ import { TreeCanvas } from "./viz/TreeCanvas";
 import { LeftPanel } from "./left_panel/LeftPanel";
 import { RightPanel } from "./right_panel/RightPanel";
 import { DevPanel } from "./dev_panel/DevPanel";
-import { AppShell } from "./layout/AppShell";
+import { AppShell, shellLayout } from "./layout/AppShell";
 import { IconButton, IconLink } from "./ui/IconButton";
 import { PlaybackBridge } from "./PlaybackBridge";
 import { Keybinds } from "./Keybinds";
@@ -25,6 +25,8 @@ import "./styles/forms.css";
 import "./viz/legacy.css";
 
 import {
+  AiFillFastBackward,
+  AiFillFastForward,
   AiFillStepBackward,
   AiFillStepForward,
   AiOutlineCode,
@@ -36,26 +38,48 @@ import { FiGithub } from "solid-icons/fi";
 import { ViewControls } from "./ViewControls";
 
 function PlaybackControls() {
-  const { isPlaying, togglePlay, stepBack, stepForward } = usePlayback();
+  const { isPlaying, togglePlay, stepBack, stepForward, index, total, setIndex } =
+    usePlayback();
+  const skipToStart = () => setIndex(0);
+  const skipToEnd = () => setIndex(Math.max(0, total() - 1));
   return (
     <>
-      <IconButton onClick={stepBack} title="Step back" aria-label="Step back">
-        <AiFillStepBackward />
-      </IconButton>
-      <IconButton
-        onClick={togglePlay}
-        title={isPlaying() ? "Pause" : "Play"}
-        aria-label={isPlaying() ? "Pause" : "Play"}
-      >
-        {isPlaying() ? <AiOutlinePause /> : <FaSolidPlay />}
-      </IconButton>
-      <IconButton
-        onClick={stepForward}
-        title="Step forward"
-        aria-label="Step forward"
-      >
-        <AiFillStepForward />
-      </IconButton>
+      <div class={shellLayout.playbackCounter}>
+        {total() > 0 ? `${index() + 1}/${total()}` : "—/—"}
+      </div>
+      <div class={shellLayout.playbackRow}>
+        <IconButton
+          onClick={skipToStart}
+          title="Skip to start"
+          aria-label="Skip to start"
+        >
+          <AiFillFastBackward />
+        </IconButton>
+        <IconButton onClick={stepBack} title="Step back" aria-label="Step back">
+          <AiFillStepBackward />
+        </IconButton>
+        <IconButton
+          onClick={togglePlay}
+          title={isPlaying() ? "Pause" : "Play"}
+          aria-label={isPlaying() ? "Pause" : "Play"}
+        >
+          {isPlaying() ? <AiOutlinePause /> : <FaSolidPlay />}
+        </IconButton>
+        <IconButton
+          onClick={stepForward}
+          title="Step forward"
+          aria-label="Step forward"
+        >
+          <AiFillStepForward />
+        </IconButton>
+        <IconButton
+          onClick={skipToEnd}
+          title="Skip to end"
+          aria-label="Skip to end"
+        >
+          <AiFillFastForward />
+        </IconButton>
+      </div>
     </>
   );
 }
