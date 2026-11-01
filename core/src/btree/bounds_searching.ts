@@ -1,4 +1,4 @@
-import type { Key, TreeNode } from "./btree";
+import type { Key } from "./btree";
 
 export function lower_bound_binary_search(
   keys: Key[],

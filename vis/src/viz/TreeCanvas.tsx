@@ -39,9 +39,9 @@ export function TreeCanvas(props: Props) {
   const shapes = createMemo(() => {
     tick();
     const t = tree();
-    if (!t || !t.root_node)
+    if (!t || t.data.root == null)
       return { shapes: [] as Shape[], width: 0, height: 0 };
-    return buildShapes(t.root_node);
+    return buildShapes(t.data);
   });
 
   const centerFit = () => {

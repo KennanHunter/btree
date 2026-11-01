@@ -1,4 +1,4 @@
-import type { TreeNode } from "core";
+import type { NodeData, TreeData } from "core";
 
 export const CELL_W = 48;
 export const CELL_H = 32;
@@ -6,7 +6,7 @@ export const H_GAP = 24;
 export const V_GAP = 36;
 
 export type Laid = {
-  node: TreeNode;
+  node: NodeData;
   width: number;
   height: number;
   nodeW: number;
@@ -20,7 +20,7 @@ export type Shape =
   | { kind: "text"; x: number; y: number; value: string }
   | { kind: "line"; x1: number; y1: number; x2: number; y2: number };
 
-export function layout(node: TreeNode): Laid {
+export function layout(data: TreeData, node: NodeData): Laid {
   const hasChildren = node.children.length > 0;
   const cols = Math.max(
     node.data_keys.length,
@@ -30,7 +30,7 @@ export function layout(node: TreeNode): Laid {
   const nodeW = cols * CELL_W;
   const nodeH = hasChildren ? 2 * CELL_H : CELL_H;
 
-  const children = node.children.map(layout);
+  const children = node.children.map((id) => layout(data, data.nodes[id]));
   const childrenW =
     children.reduce((a, c) => a + c.width, 0) +
     Math.max(0, children.length - 1) * H_GAP;
@@ -107,12 +107,13 @@ export function draw(laid: Laid, x: number, y: number, out: Shape[]) {
   }
 }
 
-export function buildShapes(root: TreeNode): {
+export function buildShapes(data: TreeData): {
   shapes: Shape[];
   width: number;
   height: number;
 } {
-  const laid = layout(root);
+  if (data.root == null) return { shapes: [], width: 0, height: 0 };
+  const laid = layout(data, data.nodes[data.root]);
   const out: Shape[] = [];
   draw(laid, 8, 8, out);
   return { shapes: out, width: laid.width, height: laid.height };

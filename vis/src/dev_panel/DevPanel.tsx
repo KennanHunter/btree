@@ -28,7 +28,7 @@ export function DevPanel() {
                     k === "tree" ||
                     k === "config" ||
                     k === "event_recorder" ||
-                    k === "animation_id_generator"
+                    k === "ids"
                       ? undefined
                       : v,
                   2,

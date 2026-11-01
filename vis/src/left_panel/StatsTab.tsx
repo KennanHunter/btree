@@ -8,12 +8,16 @@ export function StatsTab() {
   const computeDepth = () => {
     tick();
     const t = tree();
-    if (!t?.root_node) return 0;
+
+    if (!t) return 0;
+
+    const root = t?.root_node();
+    if (!root) return 0;
     let depth = 1;
-    let node = t.root_node;
+    let node = root;
     while (node.children.length > 0) {
       depth++;
-      node = node.children[0];
+      node = t.node(node.children[0]);
     }
     return depth;
   };
@@ -21,15 +25,8 @@ export function StatsTab() {
   const countNodes = () => {
     tick();
     const t = tree();
-    if (!t?.root_node) return 0;
-    let n = 0;
-    const walk = (node: typeof t.root_node) => {
-      if (!node) return;
-      n++;
-      for (const c of node.children) walk(c);
-    };
-    walk(t.root_node);
-    return n;
+    if (!t) return 0;
+    return Object.keys(t.data.nodes).length;
   };
 
   return (

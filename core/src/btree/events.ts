@@ -1,6 +1,7 @@
 // we call them BtreeEvents to avoid conflicts with DOM Event interface
 
 import type { AnimationID } from "../animation/id_generator";
+import type { Snapshot } from "./btree";
 
 export type BTreeEvent =
   | { t: "visit"; node: AnimationID }
@@ -26,9 +27,11 @@ export type BTreeEvent =
 //     kind: "btree" | "bplus_leaf" | "bplus_internal";
 //   }
 // | { t: "grow_root"; old_root: AnimationID; new_root: AnimationID };
+
 export type BTreeOperation = {
   type: "search";
   events: BTreeEvent[];
+  snapshot: Snapshot;
 };
 
 export interface BTreeEventRecorder {

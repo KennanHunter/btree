@@ -1,5 +1,5 @@
 import { create_b_tree } from ".";
-import { TreeNode, type Key, type Tree } from "./btree";
+import type { Key, NodeData, Tree } from "./btree";
 import { check_config_for_errors, type TreeConfig } from "./config";
 import type {
   BTreeEvent,
@@ -44,7 +44,8 @@ function make_tree(overrides: Partial<TreeConfig> = {}): Tree {
 }
 
 function keys_in_order(
-  node: TreeNode | undefined,
+  tree: Tree,
+  node: NodeData | undefined,
   out: number[] = [],
 ): number[] {
   if (!node) return out;
@@ -53,37 +54,46 @@ function keys_in_order(
     return out;
   }
   for (let i = 0; i < node.data_keys.length; i++) {
-    keys_in_order(node.children[i], out);
+    keys_in_order(tree, tree.node(node.children[i]), out);
     out.push(node.data_keys[i].value);
   }
-  keys_in_order(node.children[node.data_keys.length], out);
+  keys_in_order(tree, tree.node(node.children[node.data_keys.length]), out);
   return out;
 }
 
-function leaf_keys(node: TreeNode | undefined, out: number[] = []): number[] {
+function leaf_keys(
+  tree: Tree,
+  node: NodeData | undefined,
+  out: number[] = [],
+): number[] {
   if (!node) return out;
   if (node.children.length === 0) {
     out.push(...key_values(node.data_keys));
     return out;
   }
-  for (const c of node.children) leaf_keys(c, out);
+  for (const c of node.children) leaf_keys(tree, tree.node(c), out);
   return out;
 }
 
-function leaf_depths(node: TreeNode, depth = 0, out: number[] = []): number[] {
+function leaf_depths(
+  tree: Tree,
+  node: NodeData,
+  depth = 0,
+  out: number[] = [],
+): number[] {
   if (node.children.length === 0) {
     out.push(depth);
     return out;
   }
-  for (const c of node.children) leaf_depths(c, depth + 1, out);
+  for (const c of node.children) leaf_depths(tree, tree.node(c), depth + 1, out);
   return out;
 }
 
-function assert_bounded(tree: Tree, node: TreeNode) {
+function assert_bounded(tree: Tree, node: NodeData) {
   expect(node.data_keys.length).toBeLessThanOrEqual(tree.config.fanout - 1);
   if (node.children.length > 0) {
     expect(node.children.length).toBe(node.data_keys.length + 1);
-    for (const c of node.children) assert_bounded(tree, c);
+    for (const c of node.children) assert_bounded(tree, tree.node(c));
   }
 }
 
@@ -101,7 +111,7 @@ describe("create_b_tree", () => {
     expect(result.error).toBe(false);
     if (!result.error) {
       expect(result.tree.config.fanout).toBe(4);
-      expect(result.tree.root_node).toBeUndefined();
+      expect(result.tree.root_node()).toBeUndefined();
     }
   });
 
@@ -195,41 +205,41 @@ describe("Tree.insert", () => {
   it("creates a root on first insert", () => {
     const tree = make_tree();
     tree.insert(5);
-    expect(key_values(tree.root_node?.data_keys)).toEqual([5]);
+    expect(key_values(tree.root_node()?.data_keys)).toEqual([5]);
   });
 
   it("inserts into a leaf in sorted order", () => {
     const tree = make_tree({ fanout: 4 });
     for (const v of [5, 2, 8]) tree.insert(v);
-    expect(key_values(tree.root_node?.data_keys)).toEqual([2, 5, 8]);
-    expect(tree.root_node?.children.length).toBe(0);
+    expect(key_values(tree.root_node()?.data_keys)).toEqual([2, 5, 8]);
+    expect(tree.root_node()?.children.length).toBe(0);
   });
 
   it("splits a full root and grows height (top_down)", () => {
     const tree = make_tree({ fanout: 4 });
     for (const v of [1, 2, 3, 4]) tree.insert(v);
-    expect(tree.root_node?.children.length).toBeGreaterThan(0);
-    expect(keys_in_order(tree.root_node)).toEqual([1, 2, 3, 4]);
+    expect(tree.root_node()?.children.length).toBeGreaterThan(0);
+    expect(keys_in_order(tree, tree.root_node())).toEqual([1, 2, 3, 4]);
   });
 
   it("splits a full root and grows height (bottom_up)", () => {
     const tree = make_tree({ fanout: 3, insert_mode: "bottom_up" });
     for (const v of [1, 2, 3]) tree.insert(v);
-    expect(tree.root_node?.children.length).toBeGreaterThan(0);
-    expect(keys_in_order(tree.root_node)).toEqual([1, 2, 3]);
+    expect(tree.root_node()?.children.length).toBeGreaterThan(0);
+    expect(keys_in_order(tree, tree.root_node())).toEqual([1, 2, 3]);
   });
 
   it("keeps all leaves at the same depth (top_down)", () => {
     const tree = make_tree({ fanout: 4 });
     for (const v of [10, 20, 5, 6, 12, 30, 7, 17, 11, 1, 2, 3]) tree.insert(v);
-    const depths = leaf_depths(tree.root_node!);
+    const depths = leaf_depths(tree, tree.root_node()!);
     expect(new Set(depths).size).toBe(1);
   });
 
   it("keeps all leaves at the same depth (bottom_up)", () => {
     const tree = make_tree({ fanout: 3, insert_mode: "bottom_up" });
     for (const v of [10, 20, 5, 6, 12, 30, 7, 17, 11, 1, 2, 3]) tree.insert(v);
-    const depths = leaf_depths(tree.root_node!);
+    const depths = leaf_depths(tree, tree.root_node()!);
     expect(new Set(depths).size).toBe(1);
   });
 
@@ -240,13 +250,13 @@ describe("Tree.insert", () => {
     ];
     for (const v of values) tree.insert(v);
     const sorted = [...values].sort((a, b) => a - b);
-    expect(keys_in_order(tree.root_node)).toEqual(sorted);
+    expect(keys_in_order(tree, tree.root_node())).toEqual(sorted);
   });
 
   it("respects fanout bounds on every node", () => {
     const tree = make_tree({ fanout: 4 });
     for (let i = 0; i < 50; i++) tree.insert(i);
-    assert_bounded(tree, tree.root_node!);
+    assert_bounded(tree, tree.root_node()!);
   });
 
   it("B+ tree variant keeps every inserted key in the leaves", () => {
@@ -257,34 +267,31 @@ describe("Tree.insert", () => {
     });
     const values = [50, 10, 70, 20, 40, 30, 60, 80, 5, 15, 25, 35, 45, 55];
     for (const v of values) tree.insert(v);
-    const leaves = leaf_keys(tree.root_node);
+    const leaves = leaf_keys(tree, tree.root_node());
     expect([...leaves].sort((a, b) => a - b)).toEqual(
       [...values].sort((a, b) => a - b),
     );
   });
 });
 
-describe("TreeNode.is_full", () => {
-  const populate = (n: TreeNode, values: number[]) => {
-    n.data_keys = values.map((value) => ({
-      value,
-      id: n.tree.animation_id_generator.allocate_id(),
-    }));
+describe("Tree.is_full", () => {
+  const make_populated = (fanout: number, values: number[]) => {
+    const tree = make_tree({ fanout });
+    const n = tree.new_node(
+      values.map((value) => ({ value, id: tree.ids.allocate_id() })),
+    );
+    return { tree, n };
   };
 
   it("is true when keys = fanout - 1", () => {
-    const tree = make_tree({ fanout: 4 });
-    const n = new TreeNode(tree);
-    populate(n, [1, 2, 3]);
+    const { tree, n } = make_populated(4, [1, 2, 3]);
     expect(key_values(n.data_keys)).toEqual([1, 2, 3]);
-    expect(n.is_full()).toBe(true);
+    expect(tree.is_full(n.id)).toBe(true);
   });
 
   it("is false below the limit", () => {
-    const tree = make_tree({ fanout: 4 });
-    const n = new TreeNode(tree);
-    populate(n, [1]);
+    const { tree, n } = make_populated(4, [1]);
     expect(key_values(n.data_keys)).toEqual([1]);
-    expect(n.is_full()).toBe(false);
+    expect(tree.is_full(n.id)).toBe(false);
   });
 });
