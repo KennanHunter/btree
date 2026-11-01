@@ -1,7 +1,34 @@
 import { create_b_tree } from ".";
-import { TreeNode, type Tree } from "./btree";
+import { TreeNode, type Key, type Tree } from "./btree";
 import { check_config_for_errors, type TreeConfig } from "./config";
+import type {
+  BTreeEvent,
+  BTreeEventRecorder,
+  BTreeOperation,
+} from "./events";
 import { expect, describe, it } from "vitest";
+
+/** Project Keys down to their numeric values, dropping animation ids. */
+function key_values(keys: readonly Key[] | undefined): number[] {
+  return keys ? keys.map((k) => k.value) : [];
+}
+
+function noop_recorder(): BTreeEventRecorder {
+  let events: BTreeEvent[] = [];
+  return {
+    record(e) {
+      events.push(e);
+    },
+    clear() {
+      events = [];
+    },
+    rollup_operation(type): BTreeOperation {
+      const op = { type, events: [...events] };
+      events = [];
+      return op;
+    },
+  };
+}
 
 function make_tree(overrides: Partial<TreeConfig> = {}): Tree {
   const config: TreeConfig = {
@@ -11,7 +38,7 @@ function make_tree(overrides: Partial<TreeConfig> = {}): Tree {
     search_mode: "binary",
     ...overrides,
   };
-  const result = create_b_tree(config);
+  const result = create_b_tree(config, noop_recorder());
   if (result.error) throw new Error(`unexpected config error: ${result.type}`);
   return result.tree;
 }
@@ -22,12 +49,12 @@ function keys_in_order(
 ): number[] {
   if (!node) return out;
   if (node.children.length === 0) {
-    out.push(...node.data_keys);
+    out.push(...key_values(node.data_keys));
     return out;
   }
   for (let i = 0; i < node.data_keys.length; i++) {
     keys_in_order(node.children[i], out);
-    out.push(node.data_keys[i]);
+    out.push(node.data_keys[i].value);
   }
   keys_in_order(node.children[node.data_keys.length], out);
   return out;
@@ -36,7 +63,7 @@ function keys_in_order(
 function leaf_keys(node: TreeNode | undefined, out: number[] = []): number[] {
   if (!node) return out;
   if (node.children.length === 0) {
-    out.push(...node.data_keys);
+    out.push(...key_values(node.data_keys));
     return out;
   }
   for (const c of node.children) leaf_keys(c, out);
@@ -62,12 +89,15 @@ function assert_bounded(tree: Tree, node: TreeNode) {
 
 describe("create_b_tree", () => {
   it("returns a tree with the given config", () => {
-    const result = create_b_tree({
-      fanout: 4,
-      insert_mode: "top_down",
-      inner_nodes_have_data: true,
-      search_mode: "binary",
-    });
+    const result = create_b_tree(
+      {
+        fanout: 4,
+        insert_mode: "top_down",
+        inner_nodes_have_data: true,
+        search_mode: "binary",
+      },
+      noop_recorder(),
+    );
     expect(result.error).toBe(false);
     if (!result.error) {
       expect(result.tree.config.fanout).toBe(4);
@@ -76,12 +106,15 @@ describe("create_b_tree", () => {
   });
 
   it("errors when fanout < 3", () => {
-    const result = create_b_tree({
-      fanout: 2,
-      insert_mode: "bottom_up",
-      inner_nodes_have_data: true,
-      search_mode: "binary",
-    });
+    const result = create_b_tree(
+      {
+        fanout: 2,
+        insert_mode: "bottom_up",
+        inner_nodes_have_data: true,
+        search_mode: "binary",
+      },
+      noop_recorder(),
+    );
     expect(result.error).toBe(true);
     if (result.error) {
       expect(result.type).toBe("FanoutTooLow");
@@ -90,12 +123,15 @@ describe("create_b_tree", () => {
   });
 
   it("errors when top_down uses an odd fanout", () => {
-    const result = create_b_tree({
-      fanout: 5,
-      insert_mode: "top_down",
-      inner_nodes_have_data: true,
-      search_mode: "binary",
-    });
+    const result = create_b_tree(
+      {
+        fanout: 5,
+        insert_mode: "top_down",
+        inner_nodes_have_data: true,
+        search_mode: "binary",
+      },
+      noop_recorder(),
+    );
     expect(result.error).toBe(true);
     if (result.error) {
       expect(result.type).toBe("TopDownOddFanout");
@@ -106,12 +142,15 @@ describe("create_b_tree", () => {
   });
 
   it("allows bottom_up with odd fanout", () => {
-    const result = create_b_tree({
-      fanout: 3,
-      insert_mode: "bottom_up",
-      inner_nodes_have_data: true,
-      search_mode: "binary",
-    });
+    const result = create_b_tree(
+      {
+        fanout: 3,
+        insert_mode: "bottom_up",
+        inner_nodes_have_data: true,
+        search_mode: "binary",
+      },
+      noop_recorder(),
+    );
     expect(result.error).toBe(false);
   });
 });
@@ -156,13 +195,13 @@ describe("Tree.insert", () => {
   it("creates a root on first insert", () => {
     const tree = make_tree();
     tree.insert(5);
-    expect(tree.root_node?.data_keys).toEqual([5]);
+    expect(key_values(tree.root_node?.data_keys)).toEqual([5]);
   });
 
   it("inserts into a leaf in sorted order", () => {
     const tree = make_tree({ fanout: 4 });
     for (const v of [5, 2, 8]) tree.insert(v);
-    expect(tree.root_node?.data_keys).toEqual([2, 5, 8]);
+    expect(key_values(tree.root_node?.data_keys)).toEqual([2, 5, 8]);
     expect(tree.root_node?.children.length).toBe(0);
   });
 
@@ -226,15 +265,26 @@ describe("Tree.insert", () => {
 });
 
 describe("TreeNode.is_full", () => {
+  const populate = (n: TreeNode, values: number[]) => {
+    n.data_keys = values.map((value) => ({
+      value,
+      id: n.tree.animation_id_generator.allocate_id(),
+    }));
+  };
+
   it("is true when keys = fanout - 1", () => {
     const tree = make_tree({ fanout: 4 });
-    const n = new TreeNode(tree, 1, 2, 3);
+    const n = new TreeNode(tree);
+    populate(n, [1, 2, 3]);
+    expect(key_values(n.data_keys)).toEqual([1, 2, 3]);
     expect(n.is_full()).toBe(true);
   });
 
   it("is false below the limit", () => {
     const tree = make_tree({ fanout: 4 });
-    const n = new TreeNode(tree, 1);
+    const n = new TreeNode(tree);
+    populate(n, [1]);
+    expect(key_values(n.data_keys)).toEqual([1]);
     expect(n.is_full()).toBe(false);
   });
 });

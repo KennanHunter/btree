@@ -4,7 +4,7 @@ import {
 } from "../animation/id_generator";
 import { lower_bound_binary_search } from "./bounds_searching";
 import type { TreeConfig } from "./config";
-import type { BTreeEvent, BTreeEventRecorder } from "./events";
+import type { BTreeEvent, BTreeEventRecorder, BTreeOperation } from "./events";
 
 export type Key = { id: AnimationID; value: number };
 
@@ -35,15 +35,45 @@ export class TreeNode {
   /**
    * @returns If value is in a tree node, return that tree node, if not, return the index
    */
-  search_for_value(value: number): TreeNode | number | null {
+  search_for_value(
+    value: number,
+  ):
+    | { t: "node"; child_index: number; value: TreeNode }
+    | { t: "data"; data_index: number; value: Key }
+    | null {
+    this.record({
+      t: "visit",
+      node: this.node_animation_id,
+    });
+
     let found_key = this.search_data_keys_for_lower_bound(value);
 
-    if (this.data_keys[found_key].value == value) return found_key;
+    if (this.data_keys[found_key]?.value == value)
+      return {
+        t: "data",
+        data_index: found_key,
+        value: this.data_keys[found_key],
+      };
 
     if (this.is_leaf_node()) return null;
 
-    // in b+ tree internal nodes, we need to make sure to go to the
-    return this.children[found_key];
+    // in b+ tree internal nodes, we need to make sure to go to the right one
+    const is_bplus_leaf =
+      !this.tree.config.inner_nodes_have_data && this.is_leaf_node();
+
+    if (is_bplus_leaf) {
+      return {
+        t: "node",
+        child_index: found_key + 1,
+        value: this.children[found_key + 1],
+      };
+    }
+
+    return {
+      t: "node",
+      child_index: found_key,
+      value: this.children[found_key],
+    };
   }
 
   /**
@@ -51,20 +81,43 @@ export class TreeNode {
    */
   search_data_keys_for_lower_bound(search_input: number): number {
     if (this.tree.config.search_mode === "linear") {
-      let index = this.data_keys.findIndex((k) => search_input <= k.value);
+      for (let i = 0; i < this.data_keys.length; i++) {
+        this.record({
+          t: "compare",
+          lo: i,
+          hi: this.data_keys.length,
+          key_id: this.data_keys[i].id,
+          node: this.node_animation_id,
+        });
 
-      if (index === -1) return this.data_keys.length;
-      return index;
+        if (search_input <= this.data_keys[i].value) {
+          return i;
+        }
+      }
+
+      return this.data_keys.length;
     }
 
-    return lower_bound_binary_search(this.data_keys, search_input);
+    return lower_bound_binary_search(
+      this.data_keys,
+      search_input,
+      (mid, lo, hi) => {
+        this.record({
+          t: "compare",
+          lo,
+          hi,
+          key_id: this.data_keys[mid].id,
+          node: this.node_animation_id,
+        });
+      },
+    );
   }
 
   insert_top_down(value: number) {
     let index = this.search_data_keys_for_lower_bound(value);
 
     // unique keys
-    if (this.data_keys[index].value === value) return;
+    if (this.data_keys[index]?.value === value) return;
 
     if (this.children.length === 0) {
       // inserts at index
@@ -101,7 +154,7 @@ export class TreeNode {
     let index = this.search_data_keys_for_lower_bound(value);
 
     // unique keys
-    if (this.data_keys[index].value === value) return null;
+    if (this.data_keys[index]?.value === value) return null;
 
     let is_leaf_node = this.is_leaf_node();
 
@@ -128,8 +181,8 @@ export class TreeNode {
 
     // build the right node
 
-    const is_leaf = this.children.length === 0;
-    const is_bplus_leaf = !this.tree.config.inner_nodes_have_data && is_leaf;
+    const is_bplus_leaf =
+      !this.tree.config.inner_nodes_have_data && this.is_leaf_node();
 
     let right: TreeNode;
 
@@ -228,40 +281,62 @@ export class Tree {
     this.root_node = new_root;
   }
 
-  search(value: number): SearchResult {
+  search(value: number): { result: SearchResult; operation: BTreeOperation } {
+    this.event_recorder.clear();
+
     const search_path: TreeNode[] = [];
 
-    if (!this.root_node)
-      return {
-        type: "Missing",
-        path: [],
-        result: null,
-      };
+    if (!this.root_node) throw new Error("Can't search a empty tree");
 
     search_path.push(this.root_node);
 
-    while (true) {
-      const result = search_path.at(-1)!.search_for_value(value);
+    let result = ((): SearchResult => {
+      while (true) {
+        const node = search_path.at(-1)!;
+        const outcome = node.search_for_value(value);
 
-      if (typeof result === "number") {
+        if (outcome === null) {
+          this.event_recorder.record({
+            t: "not_found",
+            node: node.node_animation_id,
+          });
+
+          return {
+            type: "Missing",
+            path: search_path,
+            result: null,
+          };
+        }
+
+        if (outcome.t === "node") {
+          this.event_recorder.record({
+            t: "descend",
+            from: node.node_animation_id,
+            to: outcome.value.node_animation_id,
+            slot: outcome.child_index,
+          });
+
+          search_path.push(outcome.value);
+          continue;
+        }
+
+        this.event_recorder.record({
+          t: "found",
+          node: node.node_animation_id,
+          key: outcome.value.id,
+        });
+
         return {
           type: "Success",
           path: search_path,
-          result,
+          result: outcome.value.value,
         };
       }
+    })();
 
-      if (result === null) {
-        return {
-          type: "Missing",
-          path: [],
-          result: null,
-        };
-      }
+    let operation = this.event_recorder.rollup_operation("search");
 
-      // must be a child tree node
-      search_path.push(result);
-    }
+    return { result, operation };
   }
 }
 

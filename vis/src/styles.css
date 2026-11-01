@@ -21,8 +21,25 @@ body {
 
 .app {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 280px 1fr 320px;
+  grid-template-areas: "left main right";
   height: 100%;
+}
+
+.aside-left {
+  grid-area: left;
+  background: #1b1b1b;
+  border-right: 1px solid #333;
+  overflow: auto;
+  min-height: 0;
+}
+
+.main {
+  grid-area: main;
+}
+
+.aside {
+  grid-area: right;
 }
 
 .aside-toggle {
@@ -46,6 +63,18 @@ body {
 @media (max-width: 720px) {
   .app {
     grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
+    grid-template-areas: "main" "left";
+  }
+
+  .aside-left {
+    height: 40vh;
+    border-right: none;
+    border-top: 1px solid #333;
+  }
+
+  .app.dev-mode .aside-left {
+    display: none;
   }
 
   .aside {
@@ -236,21 +265,15 @@ body {
   overflow: hidden;
 }
 
-.dev-toggle img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  padding: 8px;
-  box-sizing: border-box;
-  filter: brightness(0) invert(1);
+.dev-toggle svg {
+  width: 20px;
+  height: 20px;
+  color: #e8e8e8;
   opacity: 0.75;
 }
 
-.dev-toggle:hover img {
-  opacity: 1;
-}
-
-.dev-toggle.active img {
+.dev-toggle:hover svg,
+.dev-toggle.active svg {
   opacity: 1;
 }
 
@@ -319,6 +342,143 @@ select {
   flex-direction: column;
   gap: 24px;
   overflow: auto;
+}
+
+.events-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  height: 100%;
+  min-height: 0;
+}
+
+.events-panel h2 {
+  margin: 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9a9a9a;
+}
+
+.events-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.speed-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #9a9a9a;
+}
+
+.speed-label {
+  display: flex;
+  justify-content: space-between;
+}
+
+.speed-value {
+  color: #e8e8e8;
+  font-family: ui-monospace, monospace;
+}
+
+.speed-slider input[type="range"] {
+  width: 100%;
+  accent-color: #2563eb;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.events-list li.active {
+  background: #1f2a44;
+  border-color: #2563eb;
+}
+
+.playback-controls {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+.playback-controls .dev-toggle {
+  position: static;
+}
+
+@media (max-width: 720px) {
+  .playback-controls {
+    bottom: calc(40vh + 16px);
+  }
+
+  .app.dev-mode .playback-controls {
+    display: none;
+  }
+
+  .app.aside-open .playback-controls {
+    display: none;
+  }
+}
+
+.events-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  min-height: 0;
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+}
+
+.events-list li {
+  display: grid;
+  grid-template-columns: 18px 56px 1fr;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 6px 3px 8px;
+  background: #141414;
+  border: 1px solid #2a2a2a;
+  border-left-width: 3px;
+  border-radius: 3px;
+}
+
+.events-list li[data-t="visit"] { border-left-color: #93c5fd; }
+.events-list li[data-t="compare"] { border-left-color: #fcd34d; }
+.events-list li[data-t="descend"] { border-left-color: #86efac; }
+.events-list li[data-t="ascend"] { border-left-color: #c4b5fd; }
+.events-list li[data-t="found"] { border-left-color: #4ade80; }
+.events-list li[data-t="not_found"] { border-left-color: #fca5a5; }
+
+.events-idx {
+  color: #666;
+  text-align: right;
+}
+
+.events-tag {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.events-list li[data-t="visit"] .events-tag { color: #93c5fd; }
+.events-list li[data-t="compare"] .events-tag { color: #fcd34d; }
+.events-list li[data-t="descend"] .events-tag { color: #86efac; }
+.events-list li[data-t="ascend"] .events-tag { color: #c4b5fd; }
+.events-list li[data-t="found"] .events-tag { color: #4ade80; }
+.events-list li[data-t="not_found"] .events-tag { color: #fca5a5; }
+
+.events-desc {
+  color: #d4d4d4;
+  word-break: break-word;
 }
 
 .section {

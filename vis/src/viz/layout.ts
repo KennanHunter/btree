@@ -68,7 +68,7 @@ export function draw(laid: Laid, x: number, y: number, out: Shape[]) {
         kind: "text",
         x: nodeX + (i + 0.5) * topCellW,
         y: y + CELL_H / 2,
-        value: String(keys[i]),
+        value: String(keys[i].value),
       });
     }
   }

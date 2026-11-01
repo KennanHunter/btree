@@ -5,6 +5,7 @@ import {
   type TreeConfig,
   type TreeConfigurationError,
 } from "./config";
+import type { BTreeEventRecorder } from "./events";
 
 export type TreeCreationResult =
   | {
@@ -15,7 +16,10 @@ export type TreeCreationResult =
       error: true;
     } & TreeConfigurationError);
 
-export function create_b_tree(config: TreeConfig): TreeCreationResult {
+export function create_b_tree(
+  config: TreeConfig,
+  event_recorder: BTreeEventRecorder,
+): TreeCreationResult {
   const possible_config_error = check_config_for_errors(config);
 
   if (possible_config_error !== true) {
@@ -27,6 +31,6 @@ export function create_b_tree(config: TreeConfig): TreeCreationResult {
 
   return {
     error: false,
-    tree: new Tree(config),
+    tree: new Tree(config, event_recorder),
   };
 }

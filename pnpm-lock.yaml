@@ -22,6 +22,9 @@ importers:
       core:
         specifier: workspace:*
         version: link:../core
+      solid-icons:
+        specifier: ^1.2.0
+        version: 1.2.0(solid-js@1.9.17)
       solid-js:
         specifier: ^1.9.3
         version: 1.9.17
@@ -1200,6 +1203,11 @@ packages:
   siginfo@2.0.0:
     resolution: {integrity: sha512-ybx0WO1/8bSBLEWXZvEd7gMW3Sn3JFlW3TvX1nREbDLRNQNaeNN8WK0meBwPdAaOI7TtRRRJn/Es1zhrrCHu7g==}
 
+  solid-icons@1.2.0:
+    resolution: {integrity: sha512-yjQxWQMi9l19P5Af9vjsvalTMDFPDL4XD6etrUdNxNVhFp1bMYF0SFwUa5VYDfJ7u0SF3Qkz/F7BZxqcLUwklw==}
+    peerDependencies:
+      solid-js: '*'
+
   solid-js@1.9.17:
     resolution: {integrity: sha512-4GAmLOWPfNV8H9Jfn2LSFTpNEG6jiOKPiwd5lnLGQtehHaX6l3TOLzJqQ7mqwB/3k1Yy3zyumFVopmc/tm34ow==}
 
@@ -2298,6 +2306,10 @@ snapshots:
       '@img/sharp-win32-x64': 0.35.5
 
   siginfo@2.0.0: {}
+
+  solid-icons@1.2.0(solid-js@1.9.17):
+    dependencies:
+      solid-js: 1.9.17
 
   solid-js@1.9.17:
     dependencies:

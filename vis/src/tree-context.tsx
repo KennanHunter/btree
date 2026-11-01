@@ -10,9 +10,48 @@ import {
   create_b_tree,
   fill_random,
   fill_sequential,
+  type BTreeEvent,
+  type BTreeEventRecorder,
+  type BTreeOperation,
   type Tree,
   type TreeConfigurationError,
 } from "core";
+
+type RecorderState = {
+  current: BTreeEvent[];
+  history: BTreeOperation[];
+};
+
+type ReactiveRecorder = BTreeEventRecorder & {
+  state: Accessor<RecorderState>;
+};
+
+function create_recorder(): ReactiveRecorder {
+  const [state, setState] = createSignal<RecorderState>({
+    current: [],
+    history: [],
+  });
+  let current: BTreeEvent[] = [];
+  let history: BTreeOperation[] = [];
+  const publish = () => setState({ current: [...current], history: [...history] });
+  return {
+    state,
+    record(event) {
+      current.push(event);
+      publish();
+    },
+    clear() {
+      current = [];
+      publish();
+    },
+    rollup_operation(type) {
+      const op: BTreeOperation = { type, events: [...current] };
+      history = [...history, op];
+      publish();
+      return op;
+    },
+  };
+}
 
 export type ConfigDraft = {
   fanout: number | null;
@@ -31,15 +70,16 @@ export const DEFAULT_CONFIG: ConfigDraft = {
 function build(
   config_draft: ConfigDraft,
   init: number[],
+  event_recorder: BTreeEventRecorder,
 ): { tree: Tree | undefined; error: TreeConfigurationError | undefined } {
   if (config_draft.fanout === null) {
     return { tree: undefined, error: undefined };
   }
 
-  const result = create_b_tree({
-    ...config_draft,
-    fanout: config_draft.fanout,
-  });
+  const result = create_b_tree(
+    { ...config_draft, fanout: config_draft.fanout },
+    event_recorder,
+  );
 
   if (result.error) {
     return { tree: undefined, error: result };
@@ -62,6 +102,8 @@ type TreeContextValue = {
   changed: (k: keyof ConfigDraft) => boolean;
   anyChanged: () => boolean;
   draftError: Accessor<TreeConfigurationError | undefined>;
+  event_recorder: BTreeEventRecorder;
+  recorderState: Accessor<RecorderState>;
   updateConfig: () => void;
   insertValues: (values: number[]) => void;
   quickFillSequential: () => void;
@@ -78,7 +120,8 @@ export function TreeProvider(props: { children: JSX.Element }) {
   const [tick, setTick] = createSignal(0);
   const [fillStart, setFillStart] = createSignal(1);
 
-  const initial = build(committed(), initValues());
+  const event_recorder = create_recorder();
+  const initial = build(committed(), initValues(), event_recorder);
   const [tree, setTree] = createSignal<Tree | undefined>(initial.tree);
   const [error, setError] = createSignal<TreeConfigurationError | undefined>(
     initial.error,
@@ -100,7 +143,7 @@ export function TreeProvider(props: { children: JSX.Element }) {
 
   const updateConfig = () => {
     const d = draft();
-    const { tree: t, error: e } = build(d, initValues());
+    const { tree: t, error: e } = build(d, initValues(), event_recorder);
     setTree(t);
     setError(e);
     setCommitted(d);
@@ -140,6 +183,8 @@ export function TreeProvider(props: { children: JSX.Element }) {
     changed,
     anyChanged,
     draftError,
+    event_recorder,
+    recorderState: event_recorder.state,
     updateConfig,
     insertValues,
     quickFillSequential: () => runFill(fill_sequential),
@@ -147,7 +192,7 @@ export function TreeProvider(props: { children: JSX.Element }) {
     clearData: () => {
       setInitValues([]);
       setFillStart(1);
-      const { tree: t, error: e } = build(committed(), []);
+      const { tree: t, error: e } = build(committed(), [], event_recorder);
       setTree(t);
       setError(e);
       setTick((n) => n + 1);
