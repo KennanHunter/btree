@@ -6,16 +6,17 @@ import {
   type JSX,
 } from "solid-js";
 import {
+  build_tree,
   check_config_for_errors,
-  create_b_tree,
+  check_config_for_warnings,
+  dispatch,
   fill_random,
   fill_sequential,
-  type BTreeEvent,
-  type BTreeEventRecorder,
-  type BTreeOperation,
+  type Operation,
   type Tree,
   type TreeConfigurationError,
-} from "core";
+  type TreeConfigurationWarning,
+} from "component";
 import {
   DEFAULT_CONFIG,
   useLocalStorage,
@@ -24,63 +25,20 @@ import {
 
 export { DEFAULT_CONFIG, type ConfigDraft } from "./local-storage-context";
 
-type RecorderState = {
-  current: BTreeEvent[];
-  history: BTreeOperation[];
-};
-
-type ReactiveRecorder = BTreeEventRecorder & {
-  state: Accessor<RecorderState>;
-};
-
-function create_recorder(): ReactiveRecorder {
-  const [state, setState] = createSignal<RecorderState>({
-    current: [],
-    history: [],
-  });
-  let current: BTreeEvent[] = [];
-  let history: BTreeOperation[] = [];
-  const publish = () => setState({ current: [...current], history: [...history] });
-  return {
-    state,
-    record(event) {
-      current.push(event);
-      publish();
-    },
-    clear() {
-      current = [];
-      publish();
-    },
-    rollup_operation(type, snapshot) {
-      const op: BTreeOperation = { type, events: [...current], snapshot };
-      history = [...history, op];
-      publish();
-      return op;
-    },
-  };
-}
-
 function build(
   config_draft: ConfigDraft,
   init: number[],
-  event_recorder: BTreeEventRecorder,
 ): { tree: Tree | undefined; error: TreeConfigurationError | undefined } {
   if (config_draft.fanout === null) {
     return { tree: undefined, error: undefined };
   }
-
-  const result = create_b_tree(
+  const r = build_tree(
     { ...config_draft, fanout: config_draft.fanout },
-    event_recorder,
+    init,
   );
-
-  if (result.error) {
-    return { tree: undefined, error: result };
-  }
-
-  for (const v of init) result.tree.insert(v);
-
-  return { tree: result.tree, error: undefined };
+  return r.ok
+    ? { tree: r.tree, error: undefined }
+    : { tree: undefined, error: r.error };
 }
 
 type TreeContextValue = {
@@ -95,8 +53,10 @@ type TreeContextValue = {
   changed: (k: keyof ConfigDraft) => boolean;
   anyChanged: () => boolean;
   draftError: Accessor<TreeConfigurationError | undefined>;
-  event_recorder: BTreeEventRecorder;
-  recorderState: Accessor<RecorderState>;
+  draftWarnings: Accessor<TreeConfigurationWarning[]>;
+  operations: Accessor<Operation[]>;
+  activeOperation: Accessor<Operation | undefined>;
+  pushOperation: (op: Operation) => void;
   updateConfig: () => void;
   insertValues: (values: number[]) => void;
   quickFillSequential: () => void;
@@ -117,13 +77,18 @@ export function TreeProvider(props: { children: JSX.Element }) {
   const [draft, setDraft] = createSignal<ConfigDraft>(committed());
   const [tick, setTick] = createSignal(0);
   const [fillStart, setFillStart] = createSignal(1);
+  const [operations, setOperations] = createSignal<Operation[]>([]);
 
-  const event_recorder = create_recorder();
-  const initial = build(committed(), initValues(), event_recorder);
+  const initial = build(committed(), initValues());
   const [tree, setTree] = createSignal<Tree | undefined>(initial.tree);
   const [error, setError] = createSignal<TreeConfigurationError | undefined>(
     initial.error,
   );
+
+  const pushOperation = (op: Operation) =>
+    setOperations((prev) => [...prev, op]);
+
+  const activeOperation = () => operations().at(-1);
 
   const setField = <K extends keyof ConfigDraft>(k: K, v: ConfigDraft[K]) =>
     setDraft({ ...draft(), [k]: v });
@@ -139,11 +104,18 @@ export function TreeProvider(props: { children: JSX.Element }) {
     return r === true ? undefined : r;
   };
 
+  const draftWarnings = () => {
+    const d = draft();
+    if (d.fanout === null) return [];
+    return check_config_for_warnings({ ...d, fanout: d.fanout });
+  };
+
   const updateConfig = () => {
     const d = draft();
-    const { tree: t, error: e } = build(d, initValues(), event_recorder);
+    const { tree: t, error: e } = build(d, initValues());
     setTree(t);
     setError(e);
+    setOperations([]);
     setTreeConfig(d);
     setTick((n) => n + 1);
   };
@@ -152,10 +124,12 @@ export function TreeProvider(props: { children: JSX.Element }) {
     if (values.length === 0) return;
     setInitValues([...initValues(), ...values]);
     const t = tree();
-    if (t) {
-      for (const v of values) t.insert(v);
-      setTick((n) => n + 1);
+    if (!t) return;
+    for (const v of values) {
+      const op = dispatch(t, { kind: "insert", value: v });
+      pushOperation(op);
     }
+    setTick((n) => n + 1);
   };
 
   const runFill = (fn: (t: Tree, s: number, e: number) => number[]) => {
@@ -181,8 +155,10 @@ export function TreeProvider(props: { children: JSX.Element }) {
     changed,
     anyChanged,
     draftError,
-    event_recorder,
-    recorderState: event_recorder.state,
+    draftWarnings,
+    operations,
+    activeOperation,
+    pushOperation,
     updateConfig,
     insertValues,
     quickFillSequential: () => runFill(fill_sequential),
@@ -190,9 +166,10 @@ export function TreeProvider(props: { children: JSX.Element }) {
     clearData: () => {
       setInitValues([]);
       setFillStart(1);
-      const { tree: t, error: e } = build(committed(), [], event_recorder);
+      const { tree: t, error: e } = build(committed(), []);
       setTree(t);
       setError(e);
+      setOperations([]);
       setTick((n) => n + 1);
     },
   };

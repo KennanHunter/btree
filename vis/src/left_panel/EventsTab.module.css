@@ -91,3 +91,9 @@
     color: var(--text-strong);
     word-break: break-word;
 }
+
+.empty {
+    color: var(--text-dim);
+    font-size: 13px;
+    margin: 4px 0 0;
+}

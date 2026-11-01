@@ -103,13 +103,21 @@
 
 /* === Desktop ≥ 701px === */
 @media (min-width: 701px) {
-    .app.devMode .main {
+    /* Let the tree canvas span the icon row too, with icons floating on top.
+     * Icon-row background stays transparent so pan/zoom gestures can still
+     * land on the SVG between the buttons. */
+    .main {
         grid-column: 2;
         grid-row: 1 / 3;
     }
 
-    .app.devMode .iconRow {
+    .iconRow {
         z-index: 2;
+        pointer-events: none;
+    }
+
+    .iconRow > * {
+        pointer-events: auto;
     }
 }
 

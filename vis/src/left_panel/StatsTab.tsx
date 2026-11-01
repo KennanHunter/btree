@@ -3,7 +3,7 @@ import section from "../ui/Section.module.css";
 import styles from "./StatsTab.module.css";
 
 export function StatsTab() {
-  const { tree, tick, initValues, committed, recorderState } = useTree();
+  const { tree, tick, initValues, committed, operations } = useTree();
 
   const computeDepth = () => {
     tick();
@@ -49,7 +49,7 @@ export function StatsTab() {
       </div>
       <div class={styles.stat}>
         <span>Operations</span>
-        <strong>{recorderState().history.length}</strong>
+        <strong>{operations().length}</strong>
       </div>
     </section>
   );

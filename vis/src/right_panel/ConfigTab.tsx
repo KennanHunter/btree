@@ -1,4 +1,4 @@
-import { Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { useTree, type ConfigDraft } from "../tree-context";
 import { Button } from "../ui/Button";
 import section from "../ui/Section.module.css";
@@ -6,8 +6,15 @@ import error from "../ui/Error.module.css";
 import styles from "./ConfigTab.module.css";
 
 export function ConfigTab() {
-  const { draft, changed, anyChanged, setField, draftError, updateConfig } =
-    useTree();
+  const {
+    draft,
+    changed,
+    anyChanged,
+    setField,
+    draftError,
+    draftWarnings,
+    updateConfig,
+  } = useTree();
 
   const mark = (k: keyof ConfigDraft) =>
     changed(k) ? <span class={styles.asterisk}> *</span> : null;
@@ -18,7 +25,7 @@ export function ConfigTab() {
         <span>Fanout{mark("fanout")}</span>
         <input
           type="number"
-          min="3"
+          min="2"
           value={draft().fanout ?? ""}
           onInput={(e) => {
             const raw = e.currentTarget.value;
@@ -95,6 +102,14 @@ export function ConfigTab() {
           </div>
         )}
       </Show>
+      <For each={draftWarnings()}>
+        {(w) => (
+          <div class={`${error.warning} ${error.inline}`}>
+            <strong>{w.type}</strong>
+            <div>{w.message}</div>
+          </div>
+        )}
+      </For>
     </section>
   );
 }

@@ -1,5 +1,6 @@
 packages:
   - 'core'
+  - 'component'
   - 'vis'
 allowBuilds:
   esbuild: true

@@ -1,10 +1,13 @@
-import { For, onMount } from "solid-js";
-import type { BTreeEvent } from "core";
+import { For, Show } from "solid-js";
+import type { BTreeEvent } from "component";
+import { useTree } from "../tree-context";
 import { MAX_SPEED, MIN_SPEED, usePlayback } from "../playback-context";
 import styles from "./EventsTab.module.css";
 
-const describe = (e: BTreeEvent) => {
+const describe = (e: BTreeEvent): string => {
   switch (e.t) {
+    case "insert_start":
+      return `insert ${e.value}`;
     case "visit":
       return `visit node ${e.node}`;
     case "compare":
@@ -17,28 +20,22 @@ const describe = (e: BTreeEvent) => {
       return `found key ${e.key} in node ${e.node}`;
     case "not_found":
       return `not found in node ${e.node}`;
-    default:
-      return (e as BTreeEvent).t;
+    case "insert_key":
+      return `insert key ${e.key} into node ${e.node} at ${e.index}`;
+    case "delete_key":
+      return `delete key ${e.key} from node ${e.node} at ${e.index}`;
+    case "split":
+      return `split node ${e.node} → right ${e.right} (median ${e.median}, ${e.kind})`;
+    case "grow_root":
+      return `grow root: ${e.old_root ?? "∅"} → ${e.new_root}`;
+    case "emit":
+      return `emit key ${e.key} from node ${e.node}`;
   }
 };
 
-const FAKE_EVENTS: BTreeEvent[] = [
-  { t: "visit", node: 1 },
-  { t: "compare", node: 1, key_id: 4, lo: 0, hi: 2 },
-  { t: "compare", node: 1, key_id: 5, lo: 1, hi: 2 },
-  { t: "descend", from: 1, to: 2, slot: 1 },
-  { t: "visit", node: 2 },
-  { t: "compare", node: 2, key_id: 7, lo: 0, hi: 3 },
-  { t: "compare", node: 2, key_id: 8, lo: 1, hi: 3 },
-  { t: "descend", from: 2, to: 6, slot: 2 },
-  { t: "visit", node: 6 },
-  { t: "compare", node: 6, key_id: 11, lo: 0, hi: 2 },
-  { t: "found", node: 6, key: 11 },
-];
-
 export function EventsTab() {
-  const { setTotal, index, speed, setSpeed } = usePlayback();
-  onMount(() => setTotal(FAKE_EVENTS.length));
+  const { activeOperation } = useTree();
+  const { index, speed, setSpeed } = usePlayback();
 
   return (
     <div class={styles.tab}>
@@ -55,17 +52,27 @@ export function EventsTab() {
           onInput={(e) => setSpeed(Number(e.currentTarget.value))}
         />
       </label>
-      <ol class={styles.list}>
-        <For each={FAKE_EVENTS}>
-          {(e, i) => (
-            <li data-t={e.t} classList={{ [styles.active]: i() === index() }}>
-              <span class={styles.idx}>{i() + 1}</span>
-              <span class={styles.tag}>{e.t}</span>
-              <span class={styles.desc}>{describe(e)}</span>
-            </li>
-          )}
-        </For>
-      </ol>
+      <Show
+        when={activeOperation()}
+        fallback={<p class={styles.empty}>No operation yet.</p>}
+      >
+        {(op) => (
+          <ol class={styles.list}>
+            <For each={op().steps}>
+              {(step, i) => (
+                <li
+                  data-t={step.event.t}
+                  classList={{ [styles.active]: i() === index() }}
+                >
+                  <span class={styles.idx}>{i() + 1}</span>
+                  <span class={styles.tag}>{step.event.t}</span>
+                  <span class={styles.desc}>{describe(step.event)}</span>
+                </li>
+              )}
+            </For>
+          </ol>
+        )}
+      </Show>
     </div>
   );
 }

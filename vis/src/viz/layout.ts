@@ -1,4 +1,4 @@
-import type { NodeData, TreeData } from "core";
+import type { NodeData, TreeData } from "component";
 
 export const CELL_W = 48;
 export const CELL_H = 32;

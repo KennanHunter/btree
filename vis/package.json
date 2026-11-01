@@ -11,7 +11,7 @@
     "cf-dev": "vite build && wrangler dev"
   },
   "dependencies": {
-    "core": "workspace:*",
+    "component": "workspace:*",
     "solid-icons": "^1.2.0",
     "solid-js": "^1.9.3"
   },

@@ -14,6 +14,7 @@ type PlaybackContextValue = {
   index: Accessor<number>;
   total: Accessor<number>;
   setTotal: (n: number) => void;
+  setIndex: (n: number) => void;
   setSpeed: (n: number) => void;
   togglePlay: () => void;
   stepBack: () => void;
@@ -68,6 +69,7 @@ export function PlaybackProvider(props: { children: JSX.Element }) {
     index,
     total,
     setTotal,
+    setIndex,
     setSpeed,
     togglePlay,
     stepBack,

@@ -17,6 +17,7 @@ import { RightPanel } from "./right_panel/RightPanel";
 import { DevPanel } from "./dev_panel/DevPanel";
 import { AppShell } from "./layout/AppShell";
 import { IconButton, IconLink } from "./ui/IconButton";
+import { PlaybackBridge } from "./PlaybackBridge";
 import "./styles/tokens.css";
 import "./styles/reset.css";
 import "./styles/forms.css";
@@ -74,68 +75,71 @@ function App() {
   };
 
   return (
-    <AppShell
-      devMode={devMode()}
-      asideOpen={asideOpen()}
-      leftTall={leftTab() === "info"}
-      mainSplit={devMode()}
-      onBackdropClick={() => setAsideOpen(false)}
-      left={<LeftPanel />}
-      main={
-        <>
-          <TreeCanvas
-            fitRequest={fitTick}
+    <>
+      <PlaybackBridge />
+      <AppShell
+        devMode={devMode()}
+        asideOpen={asideOpen()}
+        leftTall={leftTab() === "info"}
+        mainSplit={devMode()}
+        onBackdropClick={() => setAsideOpen(false)}
+        left={<LeftPanel />}
+        main={
+          <>
+            <TreeCanvas
+              fitRequest={fitTick}
+              autoFit={autoFit}
+              onUserInteract={() => autoFit() && setAutoFit(false)}
+            />
+            <Show when={devMode()}>
+              <DevPanel />
+            </Show>
+          </>
+        }
+        right={<RightPanel />}
+        iconsLeft={
+          <>
+            <IconLink
+              href="https://github.com/kennanhunter/btree"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="GitHub"
+              aria-label="GitHub"
+            >
+              <FiGithub />
+            </IconLink>
+            <IconButton
+              active={devMode()}
+              onClick={() => setDevMode(!devMode())}
+              title="Toggle developer view"
+              aria-label="Toggle developer view"
+            >
+              <AiOutlineCode />
+            </IconButton>
+          </>
+        }
+        iconsRight={
+          <ViewControls
             autoFit={autoFit}
-            onUserInteract={() => autoFit() && setAutoFit(false)}
+            toggleAutoFit={() => {
+              const next = !autoFit();
+              setAutoFit(next);
+              if (next) setFitTick((n) => n + 1);
+            }}
           />
-          <Show when={devMode()}>
-            <DevPanel />
-          </Show>
-        </>
-      }
-      right={<RightPanel />}
-      iconsLeft={
-        <>
-          <IconLink
-            href="https://github.com/kennanhunter/btree"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="GitHub"
-            aria-label="GitHub"
-          >
-            <FiGithub />
-          </IconLink>
+        }
+        asideToggle={
           <IconButton
-            active={devMode()}
-            onClick={() => setDevMode(!devMode())}
-            title="Toggle developer view"
-            aria-label="Toggle developer view"
+            shake={!hasOpenedSidePanel() && hasCreatedTree()}
+            onClick={toggleAside}
+            aria-label="Toggle controls"
           >
-            <AiOutlineCode />
+            <AiOutlineMenu />
           </IconButton>
-        </>
-      }
-      iconsRight={
-        <ViewControls
-          autoFit={autoFit}
-          toggleAutoFit={() => {
-            const next = !autoFit();
-            setAutoFit(next);
-            if (next) setFitTick((n) => n + 1);
-          }}
-        />
-      }
-      asideToggle={
-        <IconButton
-          shake={!hasOpenedSidePanel() && hasCreatedTree()}
-          onClick={toggleAside}
-          aria-label="Toggle controls"
-        >
-          <AiOutlineMenu />
-        </IconButton>
-      }
-      playback={<PlaybackControls />}
-    />
+        }
+        playback={<PlaybackControls />}
+      />
+    </>
   );
 }
 

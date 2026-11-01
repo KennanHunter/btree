@@ -3,12 +3,12 @@ import { shellLayout } from "../layout/AppShell";
 import styles from "./DevPanel.module.css";
 
 export function DevPanel() {
-  const { initValues, committed, tree, tick, recorderState } = useTree();
+  const { initValues, committed, tree, tick, operations } = useTree();
   return (
     <div class={`${styles.panel} ${shellLayout.devPane}`}>
       {(() => {
         tick();
-        const rs = recorderState();
+        const ops = operations();
         return (
           <>
             <section>
@@ -36,12 +36,19 @@ export function DevPanel() {
               </pre>
             </section>
             <section>
-              <h3>event recorder — current ({rs.current.length})</h3>
-              <pre>{JSON.stringify(rs.current, null, 2)}</pre>
-            </section>
-            <section>
-              <h3>event recorder — history ({rs.history.length})</h3>
-              <pre>{JSON.stringify(rs.history, null, 2)}</pre>
+              <h3>operations ({ops.length})</h3>
+              <pre>
+                {JSON.stringify(
+                  ops.map((op) => ({
+                    kind: op.kind,
+                    request: op.request,
+                    result: op.result,
+                    stepCount: op.steps.length,
+                  })),
+                  null,
+                  2,
+                )}
+              </pre>
             </section>
           </>
         );
