@@ -1,0 +1,16 @@
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Helvetica, "Helvetica Neue", Arial, sans-serif;
+}
+
+#root {
+    height: 100%;
+}

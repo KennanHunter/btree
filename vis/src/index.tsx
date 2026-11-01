@@ -15,6 +15,8 @@ import { TreeCanvas } from "./viz/TreeCanvas";
 import { LeftPanel } from "./left_panel/LeftPanel";
 import { RightPanel } from "./right_panel/RightPanel";
 import { DevPanel } from "./dev_panel/DevPanel";
+import "./styles/tokens.css";
+import "./styles/reset.css";
 import "./styles.css";
 
 import {

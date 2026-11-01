@@ -1,0 +1,56 @@
+:root {
+    color-scheme: dark;
+
+    --bg: #232323;
+    --panel: #1b1b1b;
+    --panel-sunken: #141414;
+    --surface: #2c2c2c;
+    --surface-hover: #363636;
+    --surface-active: #404040;
+
+    --border: #3a3a3a;
+    --border-strong: #333;
+    --border-sunken: #2a2a2a;
+
+    --text: #e8e8e8;
+    --text-strong: #d4d4d4;
+    --text-muted: #b8b8b8;
+    --text-dim: #9a9a9a;
+    --text-faint: #8a8a8a;
+    --text-disabled: #666;
+
+    --accent: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-active: #1e40af;
+    --accent-soft: #1f2a44;
+    --link: #93c5fd;
+
+    --danger: #f87171;
+    --danger-text: #f5b5b5;
+    --danger-bg: #3b1a1a;
+    --danger-border: #7a2b2b;
+
+    --evt-visit: #93c5fd;
+    --evt-compare: #fcd34d;
+    --evt-descend: #86efac;
+    --evt-ascend: #c4b5fd;
+    --evt-found: #4ade80;
+    --evt-not-found: #fca5a5;
+
+    --radius-sm: 3px;
+    --radius: 6px;
+    --radius-md: 8px;
+    --radius-pill: 20px;
+
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+
+    --shadow-pop: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: -8px 0 24px rgba(0, 0, 0, 0.4);
+
+    /* Breakpoints (reference only; @media rules cannot consume vars) */
+    --bp-mobile-max: 700px;
+    --bp-tablet-max: 1000px;
+}
