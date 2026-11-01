@@ -17,6 +17,8 @@ type PlaybackContextValue = {
   setIndex: (n: number) => void;
   setSpeed: (n: number) => void;
   togglePlay: () => void;
+  play: () => void;
+  pause: () => void;
   stepBack: () => void;
   stepForward: () => void;
 };
@@ -41,6 +43,13 @@ export function PlaybackProvider(props: { children: JSX.Element }) {
   const stepBack = () => {
     setIndex((i) => (i > 0 ? i - 1 : 0));
   };
+
+  const play = () => {
+    if (index() >= total() - 1) setIndex(0);
+    setIsPlaying(true);
+  };
+
+  const pause = () => setIsPlaying(false);
 
   const togglePlay = () => {
     if (!isPlaying() && index() >= total() - 1) setIndex(0);
@@ -72,6 +81,8 @@ export function PlaybackProvider(props: { children: JSX.Element }) {
     setIndex,
     setSpeed,
     togglePlay,
+    play,
+    pause,
     stepBack,
     stepForward,
   };

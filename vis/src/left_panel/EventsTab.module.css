@@ -55,6 +55,11 @@
     border: 1px solid var(--border-sunken);
     border-left-width: 3px;
     border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.list li:hover {
+    background: var(--panel);
 }
 
 .list li.active {

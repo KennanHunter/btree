@@ -1,5 +1,6 @@
 import { useTree } from "../tree-context";
 import { useLocalStorage } from "../local-storage-context";
+import { usePlayback } from "../playback-context";
 import { useLeftPanel } from "./left-panel-context";
 import { AiOutlineAim } from "solid-icons/ai";
 import { Button } from "../ui/Button";
@@ -10,6 +11,7 @@ export function InfoTab() {
   const { setField, updateConfig, insertValues, clearData } = useTree();
   const { hasCreatedTree, markTreeCreated } = useLocalStorage();
   const { setTab } = useLeftPanel();
+  const { play } = usePlayback();
 
   const createDemo = () => {
     clearData();
@@ -21,6 +23,7 @@ export function InfoTab() {
     insertValues([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     markTreeCreated();
     setTab("events");
+    play();
   };
 
   return (

@@ -4,7 +4,6 @@ export * from "./events";
 export * from "./highlight";
 export * from "./operation";
 export * from "./range";
-export * from "./shapes";
 export * from "./view";
 
 // Primitives re-exported from core so `vis` only ever imports from `component`.

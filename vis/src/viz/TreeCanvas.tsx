@@ -5,14 +5,15 @@ import {
   onCleanup,
   Show,
 } from "solid-js";
+import { OperationPlayer } from "component";
 import { useTree } from "../tree-context";
-import { buildShapes, type Shape } from "./layout";
-import { TreeSvg } from "./TreeSvg";
+import { usePlayback } from "../playback-context";
 import { shellLayout } from "../layout/AppShell";
 
 type Props = {
   fitRequest: () => number;
   autoFit: () => boolean;
+  follow: () => boolean;
   onUserInteract?: () => void;
 };
 
@@ -20,10 +21,19 @@ const MIN_FIT_WIDTH = 600;
 const MIN_FIT_HEIGHT = 400;
 
 export function TreeCanvas(props: Props) {
-  const { tree, error, tick } = useTree();
+  const { tree, error, tick, activeOperation } = useTree();
+  const { index } = usePlayback();
+
   const [zoom, setZoom] = createSignal(1);
   const [pan, setPan] = createSignal({ x: 0, y: 0 });
   const [smooth, setSmooth] = createSignal(false);
+  // Dimensions reported by OperationPlayer's onLayout. Drives pan/zoom/fit.
+  const [dims, setDims] = createSignal({ width: 0, height: 0 });
+  // Latest focal point reported by OperationPlayer. Drives follow mode.
+  const [animCenter, setAnimCenter] = createSignal<
+    { x: number; y: number } | undefined
+  >(undefined);
+
   let canvasRef: HTMLDivElement | undefined;
   let paneRef: HTMLDivElement | undefined;
   let smoothTimer: number | undefined;
@@ -36,26 +46,26 @@ export function TreeCanvas(props: Props) {
 
   const notifyInteract = () => props.onUserInteract?.();
 
-  const shapes = createMemo(() => {
+  // Does the player have anything to show? OperationPlayer only renders
+  // dispatched Operations now — no `fallback` prop — so this is just a check
+  // for an active op.
+  const hasContent = createMemo(() => {
     tick();
-    const t = tree();
-    if (!t || t.data.root == null)
-      return { shapes: [] as Shape[], width: 0, height: 0 };
-    return buildShapes(t.data);
+    return !!activeOperation();
   });
 
   const centerFit = () => {
     const el = canvasRef;
-    const s = shapes();
-    if (!el || s.width === 0 || s.height === 0) return;
+    const { width, height } = dims();
+    if (!el || width === 0 || height === 0) return;
     const padding = 32;
-    const effW = Math.max(s.width + 16, MIN_FIT_WIDTH);
-    const effH = Math.max(s.height + 16, MIN_FIT_HEIGHT);
+    const effW = Math.max(width + 16, MIN_FIT_WIDTH);
+    const effH = Math.max(height + 16, MIN_FIT_HEIGHT);
     const sx = (el.clientWidth - padding) / effW;
     const sy = (el.clientHeight - padding) / effH;
     const z = Math.min(sx, sy, 1);
-    const w = (s.width + 16) * z;
-    const h = (s.height + 16) * z;
+    const w = (width + 16) * z;
+    const h = (height + 16) * z;
     setZoom(z);
     setPan({
       x: (el.clientWidth - w) / 2,
@@ -242,7 +252,7 @@ export function TreeCanvas(props: Props) {
   const tryInitialFit = () => {
     if (didInitialFit) return;
     if (!canvasRef || canvasRef.clientWidth === 0) return;
-    if (shapes().width === 0) return;
+    if (dims().width === 0) return;
     centerFit();
     didInitialFit = true;
   };
@@ -253,7 +263,7 @@ export function TreeCanvas(props: Props) {
   };
 
   createEffect(() => {
-    shapes();
+    dims();
     tryInitialFit();
   });
 
@@ -266,8 +276,8 @@ export function TreeCanvas(props: Props) {
   });
 
   createEffect(() => {
-    const s = shapes();
-    if (!props.autoFit() || s.width === 0 || !canvasRef) return;
+    const d = dims();
+    if (!props.autoFit() || d.width === 0 || !canvasRef) return;
     if (!didInitialFit) return;
     bumpSmooth();
     queueMicrotask(centerFit);
@@ -290,6 +300,27 @@ export function TreeCanvas(props: Props) {
     onCleanup(() => ro.disconnect());
   });
 
+  // Follow mode: keep the current zoom, pan so the animation's focus point
+  // lands in the middle of the canvas div. Transforms get smoothed so the
+  // camera glides between step-to-step highlights.
+  const panToAnimCenter = () => {
+    const el = canvasRef;
+    const c = animCenter();
+    if (!el || !c) return;
+    const z = zoom();
+    setPan({
+      x: el.clientWidth / 2 - c.x * z,
+      y: el.clientHeight / 2 - c.y * z,
+    });
+  };
+
+  createEffect(() => {
+    if (!props.follow()) return;
+    animCenter(); // subscribe
+    bumpSmooth();
+    panToAnimCenter();
+  });
+
   return (
     <div class={shellLayout.treePane} ref={paneRef}>
       <Show when={error()}>
@@ -301,7 +332,7 @@ export function TreeCanvas(props: Props) {
         )}
       </Show>
       <Show
-        when={!error() && shapes().shapes.length > 0}
+        when={!error() && hasContent()}
         fallback={
           <Show when={!error()}>
             <div class="empty">Add data to see the tree.</div>
@@ -317,12 +348,15 @@ export function TreeCanvas(props: Props) {
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
-          <TreeSvg
-            shapes={shapes().shapes}
-            width={shapes().width}
-            height={shapes().height}
-            transform={`translate(${pan().x}px, ${pan().y}px) scale(${zoom()})`}
-            smooth={smooth()}
+          <OperationPlayer
+            op={activeOperation()}
+            index={index()}
+            onLayout={setDims}
+            onAnimationCenter={setAnimCenter}
+            class={smooth() ? "tree-svg smooth" : "tree-svg"}
+            style={{
+              transform: `translate(${pan().x}px, ${pan().y}px) scale(${zoom()})`,
+            }}
           />
         </div>
       </Show>

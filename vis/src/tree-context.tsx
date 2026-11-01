@@ -10,8 +10,6 @@ import {
   check_config_for_errors,
   check_config_for_warnings,
   dispatch,
-  fill_random,
-  fill_sequential,
   type Operation,
   type Tree,
   type TreeConfigurationError,
@@ -25,17 +23,16 @@ import {
 
 export { DEFAULT_CONFIG, type ConfigDraft } from "./local-storage-context";
 
+// Builds an empty tree. Initial values are applied through `dispatch` so the
+// first entry in the operations list is always the seeding `bulk_insert` —
+// OperationPlayer has no fallback renderer, it only draws Operations.
 function build(
   config_draft: ConfigDraft,
-  init: number[],
 ): { tree: Tree | undefined; error: TreeConfigurationError | undefined } {
   if (config_draft.fanout === null) {
     return { tree: undefined, error: undefined };
   }
-  const r = build_tree(
-    { ...config_draft, fanout: config_draft.fanout },
-    init,
-  );
+  const r = build_tree({ ...config_draft, fanout: config_draft.fanout });
   return r.ok
     ? { tree: r.tree, error: undefined }
     : { tree: undefined, error: r.error };
@@ -79,14 +76,24 @@ export function TreeProvider(props: { children: JSX.Element }) {
   const [fillStart, setFillStart] = createSignal(1);
   const [operations, setOperations] = createSignal<Operation[]>([]);
 
-  const initial = build(committed(), initValues());
+  const pushOperation = (op: Operation) => {
+    // eslint-disable-next-line no-console
+    console.log("dispatch →", op);
+    setOperations((prev) => [...prev, op]);
+  };
+
+  const seed_initial_values = (t: Tree) => {
+    const values = initValues();
+    if (values.length === 0) return;
+    pushOperation(dispatch(t, { kind: "bulk_insert", values }));
+  };
+
+  const initial = build(committed());
   const [tree, setTree] = createSignal<Tree | undefined>(initial.tree);
   const [error, setError] = createSignal<TreeConfigurationError | undefined>(
     initial.error,
   );
-
-  const pushOperation = (op: Operation) =>
-    setOperations((prev) => [...prev, op]);
+  if (initial.tree) seed_initial_values(initial.tree);
 
   const activeOperation = () => operations().at(-1);
 
@@ -112,10 +119,11 @@ export function TreeProvider(props: { children: JSX.Element }) {
 
   const updateConfig = () => {
     const d = draft();
-    const { tree: t, error: e } = build(d, initValues());
+    const { tree: t, error: e } = build(d);
     setTree(t);
     setError(e);
     setOperations([]);
+    if (t) seed_initial_values(t);
     setTreeConfig(d);
     setTick((n) => n + 1);
   };
@@ -125,22 +133,32 @@ export function TreeProvider(props: { children: JSX.Element }) {
     setInitValues([...initValues(), ...values]);
     const t = tree();
     if (!t) return;
-    for (const v of values) {
-      const op = dispatch(t, { kind: "insert", value: v });
-      pushOperation(op);
-    }
+    // Collapse the whole batch into one dispatched Operation (one entry in
+    // the events panel, one event stream covering every insert) — otherwise
+    // "Create 2-3 B tree" produces 10 separate ops, which is annoying.
+    const req =
+      values.length === 1
+        ? { kind: "insert" as const, value: values[0] }
+        : { kind: "bulk_insert" as const, values };
+    pushOperation(dispatch(t, req));
     setTick((n) => n + 1);
   };
 
-  const runFill = (fn: (t: Tree, s: number, e: number) => number[]) => {
-    const t = tree();
-    if (!t) return;
+  // Quick-fill routes through insertValues → dispatch(bulk_insert) so the
+  // batch shows up as one Operation in the events panel.
+  const quick_fill_range = (shuffle: boolean) => {
     const start = fillStart();
     const end = start + 99;
-    const added = fn(t, start, end);
-    setInitValues([...initValues(), ...added]);
+    const values: number[] = [];
+    for (let v = start; v <= end; v++) values.push(v);
+    if (shuffle) {
+      for (let i = values.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [values[i], values[j]] = [values[j], values[i]];
+      }
+    }
     setFillStart(end + 1);
-    setTick((n) => n + 1);
+    insertValues(values);
   };
 
   const value: TreeContextValue = {
@@ -161,12 +179,12 @@ export function TreeProvider(props: { children: JSX.Element }) {
     pushOperation,
     updateConfig,
     insertValues,
-    quickFillSequential: () => runFill(fill_sequential),
-    quickFillRandom: () => runFill(fill_random),
+    quickFillSequential: () => quick_fill_range(false),
+    quickFillRandom: () => quick_fill_range(true),
     clearData: () => {
       setInitValues([]);
       setFillStart(1);
-      const { tree: t, error: e } = build(committed(), []);
+      const { tree: t, error: e } = build(committed());
       setTree(t);
       setError(e);
       setOperations([]);

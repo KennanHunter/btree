@@ -18,6 +18,7 @@ import { DevPanel } from "./dev_panel/DevPanel";
 import { AppShell } from "./layout/AppShell";
 import { IconButton, IconLink } from "./ui/IconButton";
 import { PlaybackBridge } from "./PlaybackBridge";
+import { Keybinds } from "./Keybinds";
 import "./styles/tokens.css";
 import "./styles/reset.css";
 import "./styles/forms.css";
@@ -64,6 +65,19 @@ function App() {
   const [asideOpen, setAsideOpen] = createSignal(false);
   const [fitTick, setFitTick] = createSignal(0);
   const [autoFit, setAutoFit] = createSignal(true);
+  const [follow, setFollow] = createSignal(false);
+
+  // Mutually exclusive camera modes. Turning one on turns the other off;
+  // manual pan/zoom clears both (see `onUserInteract` below).
+  const enableAutoFit = () => {
+    setFollow(false);
+    setAutoFit(true);
+    setFitTick((n) => n + 1);
+  };
+  const enableFollow = () => {
+    setAutoFit(false);
+    setFollow(true);
+  };
   const { tab: leftTab } = useLeftPanel();
   const { hasOpenedSidePanel, markSidePanelOpened, hasCreatedTree } =
     useLocalStorage();
@@ -77,6 +91,7 @@ function App() {
   return (
     <>
       <PlaybackBridge />
+      <Keybinds />
       <AppShell
         devMode={devMode()}
         asideOpen={asideOpen()}
@@ -89,7 +104,11 @@ function App() {
             <TreeCanvas
               fitRequest={fitTick}
               autoFit={autoFit}
-              onUserInteract={() => autoFit() && setAutoFit(false)}
+              follow={follow}
+              onUserInteract={() => {
+                if (autoFit()) setAutoFit(false);
+                if (follow()) setFollow(false);
+              }}
             />
             <Show when={devMode()}>
               <DevPanel />
@@ -121,11 +140,9 @@ function App() {
         iconsRight={
           <ViewControls
             autoFit={autoFit}
-            toggleAutoFit={() => {
-              const next = !autoFit();
-              setAutoFit(next);
-              if (next) setFitTick((n) => n + 1);
-            }}
+            follow={follow}
+            toggleAutoFit={() => (autoFit() ? setAutoFit(false) : enableAutoFit())}
+            toggleFollow={() => (follow() ? setFollow(false) : enableFollow())}
           />
         }
         asideToggle={

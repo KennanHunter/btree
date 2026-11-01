@@ -4,12 +4,15 @@ import styles from "./ViewControls.module.css";
 
 type Props = {
   autoFit: () => boolean;
+  follow: () => boolean;
   toggleAutoFit: () => void;
+  toggleFollow: () => void;
 };
 
 export function ViewControls(props: Props) {
   const highlightIndex = (): number | null => {
     if (props.autoFit()) return 0;
+    if (props.follow()) return 1;
     return null;
   };
 
@@ -34,8 +37,9 @@ export function ViewControls(props: Props) {
       </button>
       <button
         class={styles.btn}
-        disabled
-        title="Follow animation (coming soon)"
+        classList={{ [styles.active]: props.follow() }}
+        onClick={props.toggleFollow}
+        title="Follow animation"
         aria-label="Follow animation"
       >
         <AiOutlineAim />

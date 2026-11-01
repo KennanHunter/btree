@@ -1,4 +1,4 @@
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import type { BTreeEvent } from "component";
 import { useTree } from "../tree-context";
 import { MAX_SPEED, MIN_SPEED, usePlayback } from "../playback-context";
@@ -35,7 +35,28 @@ const describe = (e: BTreeEvent): string => {
 
 export function EventsTab() {
   const { activeOperation } = useTree();
-  const { index, speed, setSpeed } = usePlayback();
+  const { index, setIndex, speed, setSpeed } = usePlayback();
+
+  // The list row the user is "looking at". Normally this just mirrors the
+  // playback cursor, but during a click-to-jump the row we highlight stays
+  // put at the target while the player is still showing the frame before
+  // it — gives the illusion of the clicked event animating in.
+  const [sticky, setSticky] = createSignal<number | undefined>();
+  const highlighted = () => sticky() ?? index();
+
+  let pending: number | undefined;
+  const jumpTo = (target: number) => {
+    if (pending !== undefined) window.clearTimeout(pending);
+    // Immediately pin the active row to the clicked step; the player
+    // continues to render the previous step for 200ms, then catches up.
+    setSticky(target);
+    setIndex(Math.max(0, target - 1));
+    pending = window.setTimeout(() => {
+      setIndex(target);
+      setSticky(undefined); // let the highlight follow playback again
+      pending = undefined;
+    }, 200);
+  };
 
   return (
     <div class={styles.tab}>
@@ -62,7 +83,8 @@ export function EventsTab() {
               {(step, i) => (
                 <li
                   data-t={step.event.t}
-                  classList={{ [styles.active]: i() === index() }}
+                  classList={{ [styles.active]: i() === highlighted() }}
+                  onClick={() => jumpTo(i())}
                 >
                   <span class={styles.idx}>{i() + 1}</span>
                   <span class={styles.tag}>{step.event.t}</span>
