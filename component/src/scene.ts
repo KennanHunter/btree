@@ -312,6 +312,7 @@ export const EMPTY_POSE: Pose = {
   edges: new Map(),
   width: 0,
   height: 0,
+  min_x: 0,
   hidden: new Set(),
 };
 
@@ -459,17 +460,22 @@ function place(
   });
 }
 
-// Collect every id in a scene subtree rooted at `id`.
-function subtree_ids(
-  scene: Scene,
+// Collect every id in a subtree rooted at `id`. Accepts anything whose
+// `nodes` field maps id → { children: readonly AnimationID[] }, so it
+// works on a Scene and on a Snapshot alike (pose_edit uses it against a
+// snapshot).
+export function subtree_ids(
+  tree: {
+    nodes: Record<AnimationID, { children: readonly AnimationID[] }>;
+  },
   id: AnimationID,
   out: Set<AnimationID> = new Set(),
 ): Set<AnimationID> {
   if (out.has(id)) return out;
   out.add(id);
-  const n = scene.nodes[id];
+  const n = tree.nodes[id];
   if (!n) return out;
-  for (const c of n.children) subtree_ids(scene, c, out);
+  for (const c of n.children) subtree_ids(tree, c, out);
   return out;
 }
 
@@ -688,16 +694,23 @@ export function layout_scene(scene: Scene): Pose {
     }
   }
 
-  // (4) normalize — compute the pose's true bounding box from everything
-  // that will actually be drawn, then shift so (minX, minY) = (0, 0). We
-  // seed the box with (0, probe_band) so the top padding stays reserved
-  // even for probe-less poses, keeping the tree position consistent across
-  // keyframes. The box then expands to cover any element that landed
-  // outside the measured subtree bbox — e.g. node overrides pushing a
-  // subtree sideways in split, or a probe hovering above a non-root node.
-  let min_x = 0;
+  // (4) anchor on root.center_x = 0, keep y top-aligned.
+  //
+  // y: compute min_y from everything placed, shift so min_y = 0. The box
+  // is seeded with (0, probe_band) so the probe-band padding is reserved
+  // even for probe-less poses — the tree position stays consistent across
+  // keyframes with/without a probe. We never let min_y go above 0 (it's
+  // the top of the padding row).
+  //
+  // x: anchor the root's node x-center at 0 so poses in the same op
+  // share one reference frame. If the tree widens (middle node widens,
+  // split spreads), siblings move symmetrically around 0 — the delta is
+  // visible as Δx in the pose, not erased by renormalization. Content
+  // left of root.center lands at negative x; `pose.min_x` records how
+  // far left so the view can translate at render time.
+  let min_x = Infinity;
   let min_y = 0;
-  let max_x = 0;
+  let max_x = -Infinity;
   let max_y = probe_band;
   const consume_rect = (x: number, y: number, w: number, h: number) => {
     if (x < min_x) min_x = x;
@@ -714,7 +727,18 @@ export function layout_scene(scene: Scene): Pose {
     consume_point(e.x2, e.y2);
   }
   if (probe) consume_rect(probe.x, probe.y, probe.w, probe.h);
-  probe = shift_all(placed, probe, -min_x, -min_y);
+
+  // If no boxes were seen (empty tree past the probe) fall back to 0.
+  if (!Number.isFinite(min_x)) min_x = 0;
+  if (!Number.isFinite(max_x)) max_x = 0;
+
+  // Root anchor: x-center of the root node (post-override). Fallback to
+  // 0 if the root box isn't in `placed` (shouldn't happen for a non-empty
+  // scene, but keeps the function total).
+  const root_box = placed.nodes.get(scene.root);
+  const root_center_x = root_box ? root_box.x + root_box.w / 2 : 0;
+
+  probe = shift_all(placed, probe, -root_center_x, -min_y);
 
   // (5) hidden set: placeholder key under a slot-filling probe, plus any
   // edges the choreographer wants to mask (e.g. during split's orphan
@@ -732,6 +756,7 @@ export function layout_scene(scene: Scene): Pose {
     edges: placed.edges,
     width: max_x - min_x,
     height: max_y - min_y,
+    min_x: min_x - root_center_x,
     hidden,
     probe,
   };

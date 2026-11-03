@@ -12,6 +12,7 @@ const EMPTY_POSE: Pose = {
   edges: new Map(),
   width: 0,
   height: 0,
+  min_x: 0,
   hidden: new Set(),
 };
 
@@ -33,11 +34,14 @@ function lerp_node(a: NodeBox, b: NodeBox, t: number): NodeBox {
   // the probe slides into its reserved slot (every persisting key's x
   // also lerps proportionally, so nothing clips).
   // Position and height always lerp — the node glides between slots and
-  // the slot row extends smoothly.
+  // the slot row extends smoothly. `no_frame` is a visibility flag;
+  // destination value wins (take-the-latest) so a frame hide/show
+  // applies from the start of the tween, same as `hidden`.
   return {
     id: b.id,
     leaf: b.leaf,
     ease_width: b.ease_width,
+    no_frame: b.no_frame,
     x: lerp(a.x, b.x, t),
     y: lerp(a.y, b.y, t),
     w: b.ease_width ? lerp(a.w, b.w, t) : b.w,
@@ -130,6 +134,7 @@ export function lerp_pose(from: Pose, to: Pose, t: number): Pose {
     edges,
     width: lerp(from.width, to.width, t),
     height: lerp(from.height, to.height, t),
+    min_x: lerp(from.min_x, to.min_x, t),
     hidden: to.hidden,
     probe: lerp_probe(from.probe, to.probe, t),
   };

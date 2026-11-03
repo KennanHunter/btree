@@ -1,7 +1,7 @@
 // We call them BTreeEvents to avoid conflicts with the DOM Event interface.
 
 import type { AnimationID } from "../animation/id_generator";
-import type { Key, NodeData, Snapshot } from "./btree";
+import type { Snapshot } from "./btree";
 
 export type SplitKind = "btree" | "bplus_leaf" | "bplus_internal";
 

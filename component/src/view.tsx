@@ -237,6 +237,7 @@ export function OperationPlayer(props: OperationPlayerProps): JSX.Element {
     edges: new Map(),
     width: 0,
     height: 0,
+    min_x: 0,
     hidden: new Set(),
   };
   const renderAt = (step: number, t: number): void => {
@@ -353,12 +354,21 @@ export function OperationPlayer(props: OperationPlayerProps): JSX.Element {
   // Follow the probe if present, else the highlight's anchor key (for
   // splits — keeps the median pinned), else the highlight centroid in the
   // destination pose.
+  //
+  // Pose coords are anchored on root.center_x = 0, so a point at pose x
+  // renders at SVG x = CANVAS_PADDING - pose.min_x + pose.x. The
+  // `-pose.min_x` term shifts negative content into the SVG viewport;
+  // animCenter has to add it too so the camera lands on the same pixel.
+  const svg_x = (pose_x: number) =>
+    pose_x + CANVAS_PADDING - shown().min_x;
+  const svg_y = (pose_y: number) => pose_y + CANVAS_PADDING;
+
   createEffect(() => {
     const probe = shown().probe;
     if (probe) {
       props.onAnimationCenter?.({
-        x: probe.x + probe.w / 2 + CANVAS_PADDING,
-        y: probe.y + probe.h / 2 + CANVAS_PADDING,
+        x: svg_x(probe.x + probe.w / 2),
+        y: svg_y(probe.y + probe.h / 2),
       });
       return;
     }
@@ -367,8 +377,8 @@ export function OperationPlayer(props: OperationPlayerProps): JSX.Element {
       const k = shown().keys.get(hl.anchor_key);
       if (k) {
         props.onAnimationCenter?.({
-          x: k.x + k.w / 2 + CANVAS_PADDING,
-          y: k.y + k.h / 2 + CANVAS_PADDING,
+          x: svg_x(k.x + k.w / 2),
+          y: svg_y(k.y + k.h / 2),
         });
         return;
       }
@@ -379,8 +389,8 @@ export function OperationPlayer(props: OperationPlayerProps): JSX.Element {
       return;
     }
     props.onAnimationCenter?.({
-      x: bounds.x + bounds.w / 2 + CANVAS_PADDING,
-      y: bounds.y + bounds.h / 2 + CANVAS_PADDING,
+      x: svg_x(bounds.x + bounds.w / 2),
+      y: svg_y(bounds.y + bounds.h / 2),
     });
   });
 
@@ -400,7 +410,9 @@ export function OperationPlayer(props: OperationPlayerProps): JSX.Element {
       height={totalH()}
     >
       <style>{SVG_STYLE}</style>
-      <g transform={`translate(${CANVAS_PADDING}, ${CANVAS_PADDING})`}>
+      <g
+        transform={`translate(${CANVAS_PADDING - shown().min_x}, ${CANVAS_PADDING})`}
+      >
         <For each={edgeIds()}>
           {(id) => (
             <Show when={not_hidden(id) && shown().edges.get(id)}>

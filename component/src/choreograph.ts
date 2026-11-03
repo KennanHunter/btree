@@ -5,21 +5,23 @@ import { easeInOutCubic, easeOutCubic } from "./ease";
 import type { Keyframe, Pose } from "./pose";
 import {
   attach_probe_above,
-  hide_node_frame,
   layout_scene,
-  override_node_pos,
-  remove_child_from_node,
-  remove_key_from_node,
-  render_node_as_leaf,
   reserve_slot,
   scene_from_snapshot,
-  subtree_width,
   with_eased_width,
-  with_extra_node,
-  with_floating_key,
-  with_hidden_edges,
   type Scene,
 } from "./scene";
+import {
+  clone_pose,
+  hide_edges,
+  hide_node_frame,
+  move_key,
+  move_subtree_to,
+  pin_subtree_to,
+  recompute_bounds,
+  render_node_as_leaf,
+  set_ease_width,
+} from "./pose_edit";
 import { CELL_W, H_GAP } from "./view";
 
 export type Ctx = {
@@ -124,39 +126,50 @@ function with_parked_probe(scene: Scene, ctx: Ctx, up_to: number): Scene {
 }
 
 // ---------------------------------------------------------------------------
-// Split phase scene builder
+// Split phase pose builder — baseline + deltas.
 //
-// All four split events share one snapshot (fully-connected tree). Each
-// phase re-draws that snapshot differently to show one specific motion:
+// All four split events share one snapshot (fully-connected, post-split
+// tree). The baseline is `layout_scene(scene_from_snapshot(snapshot))` —
+// K+1 wide parent, L and R in their natural children-row positions,
+// median key sitting inside parent's slot. Each phase clones that
+// baseline and applies a handful of deltas:
 //
-//   Phase 1 — split_slide_apart      → "halves slide apart"
-//     Parent is held at its pre-split dimensions: median is removed from
-//     its data_keys and the right half is removed from its children. L is
-//     at its K-wide natural slot (shrunk). R is rendered as an orphan
-//     (extra_node) *far* right of L so the two halves read as having slid
-//     apart. Any siblings right of L shift further right so they don't
-//     collide with the orphan R. For grow_root the whole fresh parent is
-//     hidden by setting scene.root = ev.node. The median key is not yet
-//     drawn — the lerp from the overflow pose "loses" the median key id
-//     because it isn't present in this pose.
+//   Phase 1 slide_apart[init]  — L and R overlap overflow's old span
+//                                (L on its left half, R on its right).
+//                                Median between them at the leaf row.
+//                                Parent→L / parent→R edges hidden.
 //
-//   Phase 2 — split_pull_median      → "median pulls out"
-//     Same scene as phase 1 plus a floating median at the gap between L
-//     and R. The lerp from phase 1 is a clean pop-in of the median.
+//   Phase 1 slide_apart[final] — L and R spread outward symmetrically
+//                                around overflow.center. A, C (pinned
+//                                siblings) slide outward by the same
+//                                offset so the gaps around L/R stay at
+//                                H_GAP. Median still at leaf row.
 //
-//   Phase 3 — split_parent_grows     → "parent grows"
-//     Snapshot's natural layout (parent widens to K+1, median lands in
-//     its slot, R becomes a real child). Edges from parent to L/R still
-//     hidden. For a fresh root we keep render_as_leaf so the slot row
-//     only extends in the final phase.
+//   Phase 2 pull_median        — Same L/R/A/C as final, median at a y
+//                                halfway between leaf row and parent
+//                                row. Reads as the median "climbing."
 //
-//   Phase 4 — split_connect_to_children → "connect"
-//     Fully natural: edges drawn, slot row extends.
+//   Phase 3 parent_grows       — Baseline unmodified except hide the
+//                                new slot cell (so it fades in at
+//                                phase 4) and hide parent→L / parent→R
+//                                edges. For grow_root (single-key
+//                                fresh parent) also hide the frame
+//                                and render as leaf — the slot row
+//                                extends only at phase 4.
 //
-// The parked probe (if any) is attached in every phase so top-down
-// pre-splits don't drop it mid-animation.
+//   Phase 4 connect            — Pure baseline; the only tweak is the
+//                                single-key-parent frame hide for
+//                                grow_root.
+//
+// Siblings (A, C — children of parent that aren't L or R) are pinned
+// to their pre-split positions in phase 1 init, and allowed to slide
+// outward symmetrically in phase 1 final + phase 2. In phase 3 + 4
+// they settle to their natural K+1 positions (baseline). Pose coords
+// are anchored on root.center_x = 0, so the siblings' symmetric slide
+// is visible as Δx deltas rather than being masked by a per-pose
+// renormalization.
 // ---------------------------------------------------------------------------
-function split_phase_scene(
+function split_phase_pose(
   ctx: Ctx,
   i: number,
   ev: {
@@ -172,22 +185,32 @@ function split_phase_scene(
     | "split_pull_median"
     | "split_parent_grows"
     | "split_connect_to_children",
-  // Optional sub-phase for `split_slide_apart`: `"init"` places R
-  // overlapping L (so R enters the DOM at a position that gets masked
-  // by L and then slides out), while `"final"` is the real spread
-  // position. Choreographer emits [init, final] as the two keyframes
-  // of a slide_apart step; other phases don't use this.
+  // Sub-phase for `split_slide_apart`: `"init"` places L and R
+  // overlapping the overflow node's old span; `"final"` spreads them
+  // apart. Other phases ignore this.
   slide_sub: "init" | "final" = "final",
-): Scene {
-  const base = with_parked_probe(scene_from_snapshot(snapshot), ctx, i);
-  const parent_id = find_parent(snapshot, ev.node);
-  if (parent_id === undefined) return base;
+): Pose {
+  // Baseline: fully-connected post-split layout. Includes the parked
+  // probe so top-down pre-splits keep the probe visible across phases.
+  const base_scene = with_parked_probe(scene_from_snapshot(snapshot), ctx, i);
+  const baseline = layout_scene(base_scene);
+  const pose = clone_pose(baseline);
 
-  // Pre-split step — the step just before `split_slide_apart` ran.
-  // Found by walking back until we hit a snapshot that doesn't yet
-  // contain the newly-created right half. Used both to anchor the
-  // slide-apart init to overflow's actual bounds AND to pin the parent
-  // in place through phases 1-3 so it only moves at `connect_to_children`.
+  const parent_id = find_parent(snapshot, ev.node);
+  if (parent_id === undefined) return pose;
+
+  const parent_node = snapshot.nodes[parent_id];
+  const grandparent = find_parent(snapshot, parent_id);
+  const is_fresh_root =
+    grandparent === undefined && parent_node.children.length === 2;
+  const parent_key_id = ev.copy ?? ev.median;
+  const edge_left = `${parent_id}->${ev.node}`;
+  const edge_right = `${parent_id}->${ev.right}`;
+
+  // Walk back to the step just before `split_slide_apart` ran. Its
+  // snapshot has the overflow node still intact (no `right` sibling),
+  // which gives us two things: overflow's actual bounds (for the init
+  // sub-phase's overlap) and sibling positions (for the pin).
   let pre_split_step: Step | undefined;
   for (let j = i - 1; j >= 0; j--) {
     const s = step_at(ctx.op, j);
@@ -197,317 +220,239 @@ function split_phase_scene(
       break;
     }
   }
-  let parent_prev_x: number | undefined;
-  let parent_prev_y: number | undefined;
-  if (pre_split_step && pre_split_step.snapshot.nodes[parent_id]) {
-    const prev_pose = layout_scene(scene_from_snapshot(pre_split_step.snapshot));
-    const prev_parent = prev_pose.nodes.get(parent_id);
-    if (prev_parent) {
-      parent_prev_x = prev_parent.x;
-      parent_prev_y = prev_parent.y;
-    }
-  }
-  const pin_parent = (scene: Scene): Scene => {
-    if (parent_prev_x === undefined || parent_prev_y === undefined) return scene;
-    return override_node_pos(scene, parent_id, {
-      x: parent_prev_x,
-      y: parent_prev_y,
-    });
-  };
-  // Cache the pre-split pose once; `pin_siblings` and (if needed) other
-  // helpers reuse it.
-  const pre_split_pose = pre_split_step
+  const prev_pose = pre_split_step
     ? layout_scene(scene_from_snapshot(pre_split_step.snapshot))
     : undefined;
-  // Pin siblings for phases 1-2. `right_shift` is applied to siblings
-  // right of overflow (in the pre-split children list) so they slide
-  // out of R's way during the "final" sub-phase of slide_apart. Left
-  // siblings always stay at their pre-split positions.
-  const pin_siblings = (
-    scene: Scene,
-    parent_id_arg: AnimationID,
-    right_shift: number,
-  ): Scene => {
-    if (!pre_split_pose) return scene;
-    const parent_in_snap = snapshot.nodes[parent_id_arg];
-    if (!parent_in_snap) return scene;
-    // Pre-split child index of the overflowing node, so we know which
-    // siblings are "right of L" vs left.
-    const pre_split_parent = pre_split_step?.snapshot.nodes[parent_id_arg];
-    const l_pre_idx = pre_split_parent?.children.indexOf(ev.node) ?? -1;
-    for (const sib_id of parent_in_snap.children) {
-      if (sib_id === ev.node || sib_id === ev.right) continue;
-      const prev_box = pre_split_pose.nodes.get(sib_id);
-      if (!prev_box) continue;
-      const prev_sib_idx = pre_split_parent?.children.indexOf(sib_id) ?? -1;
-      const shift = prev_sib_idx > l_pre_idx ? right_shift : 0;
-      scene = override_node_pos(scene, sib_id, {
-        x: prev_box.x + shift,
-        y: prev_box.y,
-      });
-    }
-    return scene;
-  };
+  const prev_overflow = prev_pose?.nodes.get(ev.node); // overflow M
+  const prev_parent = prev_pose?.nodes.get(parent_id);
 
-  // Phase 4 — fully connected. If the parent only has one key (the just-
-  // landed median, e.g. a fresh root grown from a split), hide the parent
-  // rect so the key doesn't sit inside an awkward empty frame.
+  // ---- Phase 4 — fully connected ---------------------------------------
   if (phase === "split_connect_to_children") {
-    const pn = snapshot.nodes[parent_id];
-    if (pn && pn.data_keys.length === 1) {
-      return hide_node_frame(base, parent_id);
+    if (parent_node.data_keys.length === 1) {
+      // Single-key fresh root — the key reads on its own without a frame.
+      hide_node_frame(pose, parent_id);
     }
-    return base;
+    recompute_bounds(pose);
+    return pose;
   }
-
-  const parent_key_id = ev.copy ?? ev.median;
-  const edge_left = `${parent_id}->${ev.node}`;
-  const edge_right = `${parent_id}->${ev.right}`;
-  const parent_node = snapshot.nodes[parent_id];
-  const grandparent = find_parent(snapshot, parent_id);
-  const is_fresh_root =
-    grandparent === undefined && parent_node.children.length === 2;
 
   // ---- Phase 3 — parent grows ------------------------------------------
   if (phase === "split_parent_grows") {
-    // Hide the one slot cell that didn't exist in the pre-split pose —
-    // the slot whose id is `${parent_id}:${K}` where K+1 is the
-    // post-split child count. Slot ids are keyed by children-array
-    // index, so when R is spliced in, every slot id after L's position
-    // gets re-tagged (slot_2 pre = Y, slot_2 post = R, etc.) and lerps
-    // across the step; only the last index has no pre-split counterpart
-    // and therefore pops in at its final position. In phase 4 it comes
-    // in alongside the parent→child edges, which reads as "connected"
-    // rather than "spawned."
-    const new_slot_id = `${parent_id}:${parent_node.children.length - 1}`;
-    let scene: Scene = with_hidden_edges(base, [
-      edge_left,
-      edge_right,
-      new_slot_id,
-    ]);
-    if (is_fresh_root) scene = render_node_as_leaf(scene, parent_id);
-    if (parent_node.data_keys.length === 1) {
-      // Single-key parent (grow_root fresh root): hide the frame so the
-      // key reads on its own instead of inside an empty rect.
-      scene = hide_node_frame(scene, parent_id);
-    } else {
-      // Multi-key internal parent: ease its width between phase 2
-      // (K-wide, stripped of median & R) and phase 3 (K+1-wide, natural)
-      // so the parent visibly widens as the median lands in its slot.
-      // Node widths otherwise snap by default.
-      scene = with_eased_width(scene, parent_id);
+    // Hide only the newly-created slots (indices beyond the pre-split
+    // children count) — the pre-existing child pointers were already
+    // visible in slide_apart / pull_median for an internal parent, so
+    // they should stay visible through parent_grows too; only the new
+    // slot (where R will connect) pops in at phase 4.
+    const pre_count = pre_split_step
+      ? pre_split_step.snapshot.nodes[parent_id]?.children.length ?? 0
+      : 0;
+    for (
+      let si = pre_count;
+      si < parent_node.children.length;
+      si++
+    ) {
+      pose.hidden.add(`${parent_id}:${si}`);
     }
-    // Phase 3 lets pin_parent's subtree shift carry the siblings:
-    // they land at their natural K+1 positions + parent_shift, which
-    // smoothly lerps into phase-4's unshifted natural K+1 (delta =
-    // parent_shift, same magnitude as parent and L/R).
-    return pin_parent(scene);
+    hide_edges(pose, [edge_left, edge_right]);
+    if (is_fresh_root) {
+      hide_node_frame(pose, parent_id);
+      render_node_as_leaf(pose, parent_id);
+    } else {
+      // Multi-key parent widens from K-wide (phase 2) to K+1-wide
+      // (phase 3). Mark the width for interpolation so the lerp animates
+      // the growth instead of snapping.
+      set_ease_width(pose, parent_id);
+    }
+    recompute_bounds(pose);
+    return pose;
   }
 
-  // ---- Phases 1 & 2 share the "parent at pre-split size" scaffold ------
-  // Parent K-wide (median stripped from data_keys, R stripped from
-  // children). R placed as an orphan far-right of L. Any siblings right of
-  // L shift to make room for R. For a fresh root we hide the parent
-  // entirely by making L the scene root — the brand-new parent then
-  // "appears above" L and R in phase 3, which reads as parent-grows.
-  let scene: Scene = base;
-  scene = remove_key_from_node(scene, parent_id, parent_key_id);
-  scene = remove_child_from_node(scene, parent_id, ev.right);
+  // ---- Phases 1 & 2 — slide_apart + pull_median ------------------------
+  // For a grow_root (fresh root created by this split) the parent didn't
+  // exist pre-split — hide its frame + slots entirely, median emerges
+  // between L and R below "nothing". For an internal parent that was
+  // already there, keep the frame + its pre-existing child-pointer
+  // slots visible at their pre-split positions; only the slot that was
+  // just added (for R) is hidden until phase 4. Non-median data_keys
+  // stay visible at their pre-split positions too so nothing pops in
+  // or out during the two sub-phases.
   if (is_fresh_root) {
-    scene = { ...scene, root: ev.node };
+    hide_node_frame(pose, parent_id);
+    for (let si = 0; si < parent_node.children.length; si++) {
+      pose.hidden.add(`${parent_id}:${si}`);
+    }
+  }
+  hide_edges(pose, [edge_left, edge_right]);
+
+  if (prev_parent) {
+    // Keep parent box at pre-split dimensions. Keys and slots render
+    // relative to parent.x via NodeView's g translate, so pinning the
+    // box anchors them in the pre-split frame.
+    const nb = pose.nodes.get(parent_id);
+    if (nb) {
+      pose.nodes.set(parent_id, {
+        ...nb,
+        x: prev_parent.x,
+        y: prev_parent.y,
+        w: prev_parent.w,
+      });
+    }
   }
 
-  // Lay out the stripped scene to find L's K-wide position.
-  const nat_stripped = layout_scene(scene);
-  const l_box = nat_stripped.nodes.get(ev.node);
-  if (!l_box) return scene;
+  if (prev_pose && pre_split_step) {
+    const pre_split_parent = pre_split_step.snapshot.nodes[parent_id];
+    if (pre_split_parent) {
+      // Pin pre-split parent keys to the positions they had before the
+      // median absorbed. Median itself is handled per-sub-phase below.
+      for (const pre_key of pre_split_parent.data_keys) {
+        if (pre_key.id === parent_key_id) continue;
+        const prev_kb = prev_pose.keys.get(pre_key.id);
+        if (!prev_kb) continue;
+        move_key(pose, pre_key.id, {
+          x: prev_kb.x,
+          y: prev_kb.y,
+          w: prev_kb.w,
+        });
+      }
 
-  // Subtree widths — not node widths — drive placement. For a leaf-level
-  // split these are equal, but when L is an internal node with its own
-  // children, L's subtree is far wider than L's own rect and we need to
-  // place R past L's whole subtree (not past L's rect) to avoid overlap.
-  const l_subtree_w = subtree_width(scene, ev.node);
-  const r_subtree_w = subtree_width(scene, ev.right);
+      if (!is_fresh_root) {
+        // Pin pre-existing slot cells (indices < pre_count) to their
+        // pre-split positions so they align with the pinned K-wide
+        // parent. Any slot added by this split (index >= pre_count) is
+        // hidden; it'll pop in at phase 4 alongside its edge.
+        const pre_count = pre_split_parent.children.length;
+        for (let i = 0; i < pre_count; i++) {
+          const slot_id = `${parent_id}:${i}`;
+          const prev_slot = prev_pose.slots.get(slot_id);
+          const cur_slot = pose.slots.get(slot_id);
+          if (!prev_slot || !cur_slot) continue;
+          pose.slots.set(slot_id, {
+            ...cur_slot,
+            x: prev_slot.x,
+            y: prev_slot.y,
+            w: prev_slot.w,
+          });
+        }
+        for (
+          let i = pre_count;
+          i < parent_node.children.length;
+          i++
+        ) {
+          pose.hidden.add(`${parent_id}:${i}`);
+        }
+      }
+    }
+  }
 
-  // Natural (K-wide) centers and the spread center R will land at. Both
-  // sub-phases key off these.
-  const l_natural_center_x = l_box.x + l_box.w / 2;
-  const l_subtree_right_natural = l_natural_center_x + l_subtree_w / 2;
-  const SPREAD = CELL_W + 2 * H_GAP;
-  const r_final_subtree_x = l_subtree_right_natural + SPREAD;
+  const L_box = pose.nodes.get(ev.node);
+  const R_box = pose.nodes.get(ev.right);
+  if (!L_box || !R_box) return pose;
 
-  // `pin_parent` (applied below) shifts the whole parent subtree by this
-  // delta in the override pass. The frame delta is used by median_x and
-  // the final-phase R placement to translate from nat_stripped coords
-  // into display coords.
-  const parent_shift =
-    parent_prev_x !== undefined
-      ? parent_prev_x - (nat_stripped.nodes.get(parent_id)?.x ?? 0)
+  // Shrink the median key to CELL_W for its floating phases. The
+  // baseline places it inside parent's slot with width = parent.w /
+  // data_keys.length — which for a wide multi-key parent can be more
+  // than CELL_W, giving an odd stretched median mid-split. CELL_W reads
+  // as a single-key cell, matching how it'll look in phase 3 for narrow
+  // parents.
+  const median_w = CELL_W;
+
+  // Pin sibling subtrees (children of parent other than L / R) to their
+  // pre-split positions. For grow_root parent didn't exist pre-split, so
+  // there are no sibling pins. In phase 1 "init" the siblings land at
+  // their pre-split spots exactly; in phase 1 "final" + phase 2 each is
+  // shifted outward by half the amount the {L, R, median} span widened
+  // past overflow's old width — left siblings by –Δ, right siblings by
+  // +Δ — so the natural H_GAP around L/R is preserved.
+  const spread_delta =
+    slide_sub === "final" && prev_overflow
+      ? (L_box.w + 2 * H_GAP + median_w + R_box.w - prev_overflow.w) / 2
       : 0;
 
-  let r_subtree_x: number;
-  let l_subtree_right_actual: number;
-  if (slide_sub === "init") {
-    // Pin L and R to the horizontal bounds the pre-split overflow leaf
-    // occupied, so the slide-out starts at the positions the two halves
-    // "would have been" inside overflow — L on its left half, R on its
-    // right half — instead of stacked at a central midpoint.
-    //
-    // We look up overflow's actual position by laying out the previous
-    // snapshot. Approximating with `l_natural_center_x` breaks at depth:
-    // L is narrower than overflow, so the parent's `children_total_w`
-    // shrinks between prev and nat_stripped, which shifts the parent
-    // (and that shift propagates up the tree), so L's current slot
-    // center drifts from where overflow actually was.
-    let overflow_subtree_x: number;
-    let overflow_w: number;
-    if (pre_split_step) {
-      const prev_scene = scene_from_snapshot(pre_split_step.snapshot);
-      const prev_pose = layout_scene(prev_scene);
-      const overflow_box = prev_pose.nodes.get(ev.node);
-      const overflow_subtree_w = subtree_width(prev_scene, ev.node);
-      if (overflow_box) {
-        const overflow_center_x = overflow_box.x + overflow_box.w / 2;
-        overflow_subtree_x = overflow_center_x - overflow_subtree_w / 2;
-        overflow_w = overflow_subtree_w;
-      } else {
-        // Node not in prev pose — fall back to the same-slot approximation.
-        const l_keys = snapshot.nodes[ev.node].data_keys.length;
-        const r_keys = snapshot.nodes[ev.right].data_keys.length;
-        const is_bplus_leaf = ev.kind === "bplus_leaf";
-        const overflow_key_count = l_keys + r_keys + (is_bplus_leaf ? 0 : 1);
-        overflow_w = overflow_key_count * CELL_W;
-        overflow_subtree_x = l_natural_center_x - overflow_w / 2;
+  if (pre_split_step && prev_pose) {
+    const pre_split_parent = pre_split_step.snapshot.nodes[parent_id];
+    if (pre_split_parent) {
+      const l_pre_idx = pre_split_parent.children.indexOf(ev.node);
+      for (const sib_id of parent_node.children) {
+        if (sib_id === ev.node || sib_id === ev.right) continue;
+        const prev_box = prev_pose.nodes.get(sib_id);
+        if (!prev_box) continue;
+        const sib_pre_idx = pre_split_parent.children.indexOf(sib_id);
+        const direction =
+          sib_pre_idx < 0 || l_pre_idx < 0
+            ? 0
+            : sib_pre_idx < l_pre_idx
+              ? -1
+              : 1;
+        pin_subtree_to(
+          pose,
+          snapshot,
+          sib_id,
+          prev_box.x + direction * spread_delta,
+          prev_box.y,
+        );
       }
-    } else {
-      // No previous step (unlikely for a mid-op split) — fall back.
-      const l_keys = snapshot.nodes[ev.node].data_keys.length;
-      const r_keys = snapshot.nodes[ev.right].data_keys.length;
-      const is_bplus_leaf = ev.kind === "bplus_leaf";
-      const overflow_key_count = l_keys + r_keys + (is_bplus_leaf ? 0 : 1);
-      overflow_w = overflow_key_count * CELL_W;
-      overflow_subtree_x = l_natural_center_x - overflow_w / 2;
     }
+  }
 
-    // Padding only kicks in when the overflow didn't have a natural
-    // slot's worth of space for the median (B+ leaf splits). btree
-    // splits have CELL_W of natural gap and we leave L and R flush
-    // against overflow's edges.
-    const nat_gap = Math.max(0, overflow_w - l_subtree_w - r_subtree_w);
-    const padding = Math.max(0, (CELL_W - nat_gap) / 2);
+  // Overflow bounds (pre-split M) in root-anchored pose coords. Fall
+  // back to L's current center if we somehow have no prev pose.
+  const overflow_x = prev_overflow?.x ?? L_box.x;
+  const overflow_w = prev_overflow?.w ?? L_box.w;
+  const overflow_center = overflow_x + overflow_w / 2;
+  // Median lands inline with L and R at their current row. For a leaf
+  // split L.y matches prev_overflow.y (M was already at leaf row). For
+  // grow_root, M was at root-y but L and R now sit a level lower under
+  // the new parent — using L.y keeps the median visually in the same
+  // row as the two halves emerging below.
+  const row_y = L_box.y;
 
-    const l_init_subtree_x = overflow_subtree_x - padding;
-    const r_init_subtree_x =
-      overflow_subtree_x + overflow_w - r_subtree_w + padding;
-    const l_init_node_x = l_init_subtree_x + (l_subtree_w - l_box.w) / 2;
-
-    scene = override_node_pos(scene, ev.node, {
-      x: l_init_node_x,
-      y: l_box.y,
+  // Phase 1 "init" — overlap overflow's span. L on the left half, R
+  // on the right half, median at overflow.center.
+  if (phase === "split_slide_apart" && slide_sub === "init") {
+    move_subtree_to(pose, snapshot, ev.node, { x: overflow_x });
+    move_subtree_to(pose, snapshot, ev.right, {
+      x: overflow_x + overflow_w - R_box.w,
     });
-    r_subtree_x = r_init_subtree_x;
-    l_subtree_right_actual = l_init_subtree_x + l_subtree_w;
+    move_key(pose, parent_key_id, {
+      x: overflow_center - median_w / 2,
+      y: row_y,
+      w: median_w,
+    });
+    recompute_bounds(pose);
+    return pose;
+  }
+
+  // Phase 1 "final" + Phase 2 — spread apart. Span centers on
+  // overflow.center so A/C (shifted by `spread_delta` above) stay
+  // symmetric. Width of the spread = L.w + H_GAP + median_w + H_GAP + R.w.
+  const spread_w = L_box.w + 2 * H_GAP + median_w + R_box.w;
+  const spread_L_x = overflow_center - spread_w / 2;
+  const spread_R_x = overflow_center + spread_w / 2 - R_box.w;
+  const spread_median_x = overflow_center - median_w / 2;
+
+  move_subtree_to(pose, snapshot, ev.node, { x: spread_L_x });
+  move_subtree_to(pose, snapshot, ev.right, { x: spread_R_x });
+
+  if (phase === "split_slide_apart") {
+    move_key(pose, parent_key_id, {
+      x: spread_median_x,
+      y: row_y,
+      w: median_w,
+    });
   } else {
-    // Final sub-phase: L stays at its nat_stripped position (shifted
-    // into display coords by pin_parent via shift_subtree). R is placed
-    // through extra_node, which bypasses the override pass and uses its
-    // (x,y) as absolute display coords — so R needs parent_shift added
-    // explicitly here or it lands one parent_shift closer to L than
-    // intended, collapsing the designed H_GAP around the median.
-    r_subtree_x = r_final_subtree_x + parent_shift;
-    l_subtree_right_actual = l_subtree_right_natural;
+    // Pull_median — median rises partway toward parent's row.
+    const parent_in_baseline = baseline.nodes.get(parent_id);
+    const parent_y = parent_in_baseline?.y ?? row_y;
+    const halfway_y = (row_y + parent_y) / 2;
+    move_key(pose, parent_key_id, {
+      x: spread_median_x,
+      y: halfway_y,
+      w: median_w,
+    });
   }
 
-  scene = with_extra_node(scene, {
-    id: ev.right,
-    // extra_node x/y is the subtree bbox origin — layout centres R's
-    // own rect inside it.
-    x: r_subtree_x,
-    y: l_box.y,
-  });
-
-  // Pin siblings. Left siblings stay at pre-split. Right siblings
-  // need to slide out of R's way in the "final" sub-phase (and in
-  // pull_median which inherits "final"). shift = how far R's right
-  // edge sits past overflow's pre-split right edge; add that same
-  // offset to each right sibling so the H_GAP between R and its
-  // post-sibling is preserved.
-  let right_shift = 0;
-  if (slide_sub === "final" && pre_split_pose) {
-    const overflow_prev = pre_split_pose.nodes.get(ev.node);
-    if (overflow_prev) {
-      const overflow_right = overflow_prev.x + overflow_prev.w;
-      const r_right_display = r_subtree_x + r_subtree_w;
-      right_shift = r_right_display - overflow_right;
-    }
-  }
-  scene = pin_siblings(scene, parent_id, right_shift);
-
-  // Always hide parent→L and parent→R edges so neither half appears
-  // connected to the parent yet (parent→R isn't generated by layout since
-  // R was removed from parent.children, but we include it defensively).
-  scene = with_hidden_edges(scene, [edge_left, edge_right]);
-
-  // Resolve the median's display value — used by both phase 1 and phase 2.
-  const median_value =
-    snapshot.nodes[parent_id]?.data_keys.find(
-      (k) => k.id === parent_key_id,
-    )?.value ??
-    snapshot.nodes[ev.right]?.data_keys.find((k) => k.id === ev.median)
-      ?.value ??
-    NaN;
-
-  // Parent-row y in the natural (K+1) layout. Phase 2's "halfway lift"
-  // needs it so the floating median starts climbing toward where it'll
-  // land. For a fresh root the parent isn't in the pose during phases
-  // 1-2 (`scene.root = ev.node` elides it) so we fall back to L's row,
-  // making phase 1 == phase 2 — there's no parent above to climb to.
-  const nat_full = layout_scene(base);
-  const parent_natural = nat_full.nodes.get(parent_id);
-  const parent_row_y = parent_natural ? parent_natural.y : l_box.y;
-
-  // Median x: midpoint of the open channel between L and R in display
-  // coords. L's subtree-right is in different frames in each sub-phase:
-  //   • init  — l_subtree_right_actual is already display (anchored to
-  //             overflow's prev bounds).
-  //   • final — l_subtree_right_actual is in nat_stripped frame, so add
-  //             parent_shift to lift it into the pinned-parent display.
-  // R's x is always display: extra_node placement happens AFTER the
-  // override pass and uses the given x/y as absolute, so no shift needed.
-  const l_right_display =
-    l_subtree_right_actual + (slide_sub === "final" ? parent_shift : 0);
-  const r_left_display = r_subtree_x;
-  const median_center_x = (l_right_display + r_left_display) / 2;
-  let median_x = median_center_x - CELL_W / 2;
-
-  // Clamp so the floating median never visually overlaps L's or R's
-  // subtree. Padding + rounding in the init sub-phase can leave the raw
-  // midpoint flush against (or a hair inside) L's right edge; the clamp
-  // slides it just past so it reads as "emerging from L's right side."
-  median_x = Math.max(median_x, l_right_display);
-  median_x = Math.min(median_x, r_left_display - CELL_W);
-
-  const anchor_y_phase1 = l_box.y;
-  const anchor_y_phase2 = (l_box.y + parent_row_y) / 2;
-
-  scene = with_floating_key(scene, {
-    id: parent_key_id,
-    value: median_value,
-    anchor: {
-      kind: "at_point",
-      x: median_x,
-      y: phase === "split_pull_median" ? anchor_y_phase2 : anchor_y_phase1,
-      // Points at the real tree parent so the renderer can nest the
-      // floating median inside the parent's <g> once the parent is
-      // visible (phase 3+ in grow_root; every phase in absorb_split).
-      parent: parent_id,
-    },
-  });
-
-  // Pin parent to its pre-split position so phases 1-3 all read as "L
-  // and R moving around a stationary parent." In the fresh-root case
-  // the parent isn't in prev's pose at all, so `pin_parent` is a no-op.
-  return pin_parent(scene);
+  recompute_bounds(pose);
+  return pose;
 }
 
 export function choreograph(ctx: Ctx): Keyframe[] {
@@ -573,16 +518,12 @@ export function choreograph(ctx: Ctx): Keyframe[] {
       // the full stepMs, sliding R and median out to the spread.
       return [
         {
-          pose: layout_scene(
-            split_phase_scene(ctx, i, ev, snapshot, ev.t, "init"),
-          ),
+          pose: split_phase_pose(ctx, i, ev, snapshot, ev.t, "init"),
           weight: 0,
           ease: easeInOutCubic,
         },
         {
-          pose: layout_scene(
-            split_phase_scene(ctx, i, ev, snapshot, ev.t, "final"),
-          ),
+          pose: split_phase_pose(ctx, i, ev, snapshot, ev.t, "final"),
           weight: 1,
           ease: easeInOutCubic,
         },
@@ -593,7 +534,7 @@ export function choreograph(ctx: Ctx): Keyframe[] {
     case "split_connect_to_children":
       return [
         {
-          pose: layout_scene(split_phase_scene(ctx, i, ev, snapshot, ev.t)),
+          pose: split_phase_pose(ctx, i, ev, snapshot, ev.t),
           weight: 1,
           ease: easeInOutCubic,
         },
