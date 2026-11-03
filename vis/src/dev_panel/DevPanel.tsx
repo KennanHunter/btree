@@ -18,6 +18,17 @@ export function DevPanel() {
     return `btree-${op_kind}-step${idx}`;
   };
 
+  const copy = (text: string) => void navigator.clipboard?.writeText(text);
+  const tree_json = () =>
+    JSON.stringify(
+      tree(),
+      (k, v) =>
+        k === "tree" || k === "config" || k === "event_recorder" || k === "ids"
+          ? undefined
+          : v,
+      2,
+    );
+
   return (
     <div class={`${styles.panel} ${shellLayout.devPane}`}>
       {(() => {
@@ -49,24 +60,30 @@ export function DevPanel() {
               <pre>{JSON.stringify(initValues())}</pre>
             </section>
             <section>
-              <h3>config</h3>
+              <div class={styles.sectionHeader}>
+                <h3>config</h3>
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => copy(JSON.stringify(committed(), null, 2))}
+                >
+                  copy
+                </Button>
+              </div>
               <pre>{JSON.stringify(committed(), null, 2)}</pre>
             </section>
             <section>
-              <h3>tree</h3>
-              <pre>
-                {JSON.stringify(
-                  tree(),
-                  (k, v) =>
-                    k === "tree" ||
-                    k === "config" ||
-                    k === "event_recorder" ||
-                    k === "ids"
-                      ? undefined
-                      : v,
-                  2,
-                )}
-              </pre>
+              <div class={styles.sectionHeader}>
+                <h3>tree</h3>
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => copy(tree_json())}
+                >
+                  copy
+                </Button>
+              </div>
+              <pre>{tree_json()}</pre>
             </section>
             <section>
               <h3>operations ({ops.length})</h3>

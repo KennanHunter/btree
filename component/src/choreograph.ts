@@ -16,7 +16,7 @@ import {
   hide_edges,
   hide_node_frame,
   move_key,
-  move_subtree_to,
+  move_node_only,
   pin_subtree_to,
   recompute_bounds,
   render_node_as_leaf,
@@ -223,7 +223,6 @@ function split_phase_pose(
   const prev_pose = pre_split_step
     ? layout_scene(scene_from_snapshot(pre_split_step.snapshot))
     : undefined;
-  const prev_overflow = prev_pose?.nodes.get(ev.node); // overflow M
   const prev_parent = prev_pose?.nodes.get(parent_id);
 
   // ---- Phase 4 — fully connected ---------------------------------------
@@ -356,18 +355,67 @@ function split_phase_pose(
   // parents.
   const median_w = CELL_W;
 
-  // Pin sibling subtrees (children of parent other than L / R) to their
-  // pre-split positions. For grow_root parent didn't exist pre-split, so
-  // there are no sibling pins. In phase 1 "init" the siblings land at
-  // their pre-split spots exactly; in phase 1 "final" + phase 2 each is
-  // shifted outward by half the amount the {L, R, median} span widened
-  // past overflow's old width — left siblings by –Δ, right siblings by
-  // +Δ — so the natural H_GAP around L/R is preserved.
+  // Pre-split M (overflow) is the node that just split — same id as L.
+  const prev_overflow = prev_pose?.nodes.get(ev.node);
+
+  // Median lands inline with L and R at their current row. For a leaf
+  // split L.y matches prev_overflow.y (M was already at leaf row). For
+  // grow_root, M was at root-y but L and R now sit a level lower under
+  // the new parent — using L.y keeps the median visually in the same
+  // row as the two halves emerging below.
+  const row_y = L_box.y;
+
+  // Overflow M's own-rect bounds — the "joined" area L+median+R fill
+  // in the init sub-phase, and the pivot the spread centres around in
+  // final / pull_median. L and R are addressed by their NODE widths
+  // (not subtree) because their children stay anchored to pre-split
+  // positions through slide_apart.
+  const overflow_node_x = prev_overflow?.x ?? L_box.x;
+  const overflow_node_w = prev_overflow?.w ?? L_box.w;
+  const overflow_node_center = overflow_node_x + overflow_node_w / 2;
+
+  // Spread total in children-row for the final sub-phase: L.node, R.node,
+  // and median separated by H_GAP channels. In init L+median+R exactly
+  // fill overflow's node area, so there's no spread; in final the span
+  // widens past overflow by (spread_w - overflow.w) and the parent-
+  // level siblings slide outward by half of that to keep the gap.
+  const spread_node_w =
+    L_box.w + 2 * H_GAP + median_w + R_box.w;
   const spread_delta =
-    slide_sub === "final" && prev_overflow
-      ? (L_box.w + 2 * H_GAP + median_w + R_box.w - prev_overflow.w) / 2
+    slide_sub === "final"
+      ? Math.max(0, (spread_node_w - overflow_node_w) / 2)
       : 0;
 
+  // Pin L.children and R.children subtrees horizontally to their
+  // pre-split positions. The user asks for the grandchildren below the
+  // splitting node to "not really move" — the motion in slide_apart is
+  // the parent-level row. Children slide into their natural post-split
+  // x during parent_grows.
+  //
+  // Only the x is pinned, not y: for a grow_root split the tree gains a
+  // level, so what used to sit at y=root-child-row now sits at
+  // y=root-grandchild-row. Pinning y to pre-split would stack the
+  // children at L / R's own y and collapse the tree visually. Keeping y
+  // at baseline lets the "frame drop one row" animation play naturally
+  // between pre-split and slide_apart; for a same-height split the two
+  // y's are identical anyway, so this is a no-op there.
+  if (prev_pose) {
+    const L_children = snapshot.nodes[ev.node]?.children ?? [];
+    const R_children = snapshot.nodes[ev.right]?.children ?? [];
+    for (const cid of [...L_children, ...R_children]) {
+      const prev_child = prev_pose.nodes.get(cid);
+      const cur_child = pose.nodes.get(cid);
+      if (!prev_child || !cur_child) continue;
+      pin_subtree_to(pose, snapshot, cid, prev_child.x, cur_child.y);
+    }
+  }
+
+  // Pin sibling subtrees (children of parent other than L / R). In
+  // phase 1 "init" the siblings land at pre-split spots exactly; in
+  // phase 1 "final" + phase 2 each slides outward by `spread_delta`
+  // (left-side siblings by –Δ, right-side by +Δ) so the H_GAP around
+  // L / R is preserved as they spread. Fresh root has no parent, so
+  // the loop is a no-op there.
   if (pre_split_step && prev_pose) {
     const pre_split_parent = pre_split_step.snapshot.nodes[parent_id];
     if (pre_split_parent) {
@@ -394,27 +442,21 @@ function split_phase_pose(
     }
   }
 
-  // Overflow bounds (pre-split M) in root-anchored pose coords. Fall
-  // back to L's current center if we somehow have no prev pose.
-  const overflow_x = prev_overflow?.x ?? L_box.x;
-  const overflow_w = prev_overflow?.w ?? L_box.w;
-  const overflow_center = overflow_x + overflow_w / 2;
-  // Median lands inline with L and R at their current row. For a leaf
-  // split L.y matches prev_overflow.y (M was already at leaf row). For
-  // grow_root, M was at root-y but L and R now sit a level lower under
-  // the new parent — using L.y keeps the median visually in the same
-  // row as the two halves emerging below.
-  const row_y = L_box.y;
-
-  // Phase 1 "init" — overlap overflow's span. L on the left half, R
-  // on the right half, median at overflow.center.
+  // Phase 1 "init" — L and R overlap M.node's area, "as if still
+  // joined". L fills M's left cells, R fills the right, median in the
+  // middle. Only move the nodes themselves; L.children and R.children
+  // (pinned above) stay anchored.
   if (phase === "split_slide_apart" && slide_sub === "init") {
-    move_subtree_to(pose, snapshot, ev.node, { x: overflow_x });
-    move_subtree_to(pose, snapshot, ev.right, {
-      x: overflow_x + overflow_w - R_box.w,
+    move_node_only(pose, snapshot, ev.node, {
+      x: overflow_node_x,
+      y: row_y,
+    });
+    move_node_only(pose, snapshot, ev.right, {
+      x: overflow_node_x + overflow_node_w - R_box.w,
+      y: row_y,
     });
     move_key(pose, parent_key_id, {
-      x: overflow_center - median_w / 2,
+      x: overflow_node_center - median_w / 2,
       y: row_y,
       w: median_w,
     });
@@ -422,16 +464,24 @@ function split_phase_pose(
     return pose;
   }
 
-  // Phase 1 "final" + Phase 2 — spread apart. Span centers on
-  // overflow.center so A/C (shifted by `spread_delta` above) stay
-  // symmetric. Width of the spread = L.w + H_GAP + median_w + H_GAP + R.w.
-  const spread_w = L_box.w + 2 * H_GAP + median_w + R_box.w;
-  const spread_L_x = overflow_center - spread_w / 2;
-  const spread_R_x = overflow_center + spread_w / 2 - R_box.w;
-  const spread_median_x = overflow_center - median_w / 2;
+  // Phase 1 "final" + Phase 2 — L and R slide outward around
+  // overflow.node.center with median between them. L.node.right +
+  // H_GAP = median.left, median.right + H_GAP = R.node.left. Children
+  // stay pinned, so parent→child edges stretch during this phase and
+  // snap back when the children settle during parent_grows.
+  const spread_L_node_x =
+    overflow_node_center - median_w / 2 - H_GAP - L_box.w;
+  const spread_R_node_x = overflow_node_center + median_w / 2 + H_GAP;
+  const spread_median_x = overflow_node_center - median_w / 2;
 
-  move_subtree_to(pose, snapshot, ev.node, { x: spread_L_x });
-  move_subtree_to(pose, snapshot, ev.right, { x: spread_R_x });
+  move_node_only(pose, snapshot, ev.node, {
+    x: spread_L_node_x,
+    y: row_y,
+  });
+  move_node_only(pose, snapshot, ev.right, {
+    x: spread_R_node_x,
+    y: row_y,
+  });
 
   if (phase === "split_slide_apart") {
     move_key(pose, parent_key_id, {
@@ -453,6 +503,17 @@ function split_phase_pose(
 
   recompute_bounds(pose);
   return pose;
+}
+
+export function step_total_weight(op: Operation, index: number): number {
+  const probe = resolve_probe_at(op, index);
+  const kfs = choreograph({
+    op,
+    index,
+    probe_id: probe?.id,
+    probe_value: probe?.value,
+  });
+  return kfs.reduce((a, k) => a + k.weight, 0) || 1;
 }
 
 export function choreograph(ctx: Ctx): Keyframe[] {

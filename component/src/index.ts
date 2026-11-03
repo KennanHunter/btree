@@ -6,7 +6,12 @@ export * from "./highlight";
 export * from "./operation";
 export * from "./range";
 export * from "./view";
-export { choreograph, resolve_probe_at, type Ctx } from "./choreograph";
+export {
+  choreograph,
+  resolve_probe_at,
+  step_total_weight,
+  type Ctx,
+} from "./choreograph";
 export type { Pose, Keyframe, ProbeBox } from "./pose";
 
 // Primitives re-exported from core so `vis` only ever imports from `component`.

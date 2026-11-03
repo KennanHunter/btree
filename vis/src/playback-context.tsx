@@ -3,6 +3,7 @@ import {
   createEffect,
   createSignal,
   onCleanup,
+  untrack,
   useContext,
   type Accessor,
   type JSX,
@@ -21,6 +22,10 @@ type PlaybackContextValue = {
   pause: () => void;
   stepBack: () => void;
   stepForward: () => void;
+  // Advancing with a weight-aware delay: each step's dwell time is
+  // `(1000/speed) * stepWeight(i)`, matching the player's tween length so
+  // multi-keyframe steps (sum(weights) > 1) are not cut off mid-flight.
+  setStepWeightFn: (fn: (i: number) => number) => void;
 };
 
 const PlaybackContext = createContext<PlaybackContextValue>();
@@ -33,6 +38,13 @@ export function PlaybackProvider(props: { children: JSX.Element }) {
   const [speed, setSpeed] = createSignal(2);
   const [index, setIndex] = createSignal(0);
   const [total, setTotal] = createSignal(0);
+  // Solid's setter treats a function argument as a reducer, so we always
+  // wrap writes in `() => fn` to store the function itself.
+  const [stepWeightFn, setStepWeightFnRaw] = createSignal<
+    (i: number) => number
+  >(() => 1);
+  const setStepWeightFn = (fn: (i: number) => number) =>
+    setStepWeightFnRaw(() => fn);
 
   const stepForward = () => {
     const t = total();
@@ -59,18 +71,33 @@ export function PlaybackProvider(props: { children: JSX.Element }) {
 
   createEffect(() => {
     if (!isPlaying()) return;
-    const interval = 1000 / speed();
-    const id = window.setInterval(() => {
-      const t = total();
-      const next = index() + 1;
-      if (next >= t) {
-        setIsPlaying(false);
-        setIndex(t === 0 ? 0 : t - 1);
-      } else {
+    // Reactive deps captured at the top of the effect so changes to speed
+    // or the weight function restart the scheduling chain.
+    const base = 1000 / speed();
+    const weightFn = stepWeightFn();
+    let timer: number | undefined;
+    // `index` is read via untrack so that `setIndex` inside the setTimeout
+    // chain doesn't re-trigger this effect — otherwise each tick would
+    // spawn an extra parallel timer and pause() couldn't catch them all.
+    const schedule = () => {
+      const current = untrack(index);
+      const delay = base * weightFn(current);
+      timer = window.setTimeout(() => {
+        const t = untrack(total);
+        const next = current + 1;
+        if (next >= t) {
+          setIsPlaying(false);
+          setIndex(t === 0 ? 0 : t - 1);
+          return;
+        }
         setIndex(next);
-      }
-    }, interval);
-    onCleanup(() => window.clearInterval(id));
+        schedule();
+      }, delay);
+    };
+    schedule();
+    onCleanup(() => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    });
   });
 
   const value: PlaybackContextValue = {
@@ -86,6 +113,7 @@ export function PlaybackProvider(props: { children: JSX.Element }) {
     pause,
     stepBack,
     stepForward,
+    setStepWeightFn,
   };
 
   return (

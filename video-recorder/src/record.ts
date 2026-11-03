@@ -10,6 +10,7 @@ export type RecordOptions = {
   deviceScaleFactor?: number;
   seed: number;
   size: number;
+  speed: number;
 };
 
 export type RecordResult = {
@@ -39,7 +40,7 @@ export async function record(opts: RecordOptions): Promise<RecordResult> {
   });
   const page = await ctx.newPage();
 
-  const target = `${opts.url}?seed=${opts.seed}&size=${opts.size}`;
+  const target = `${opts.url}?seed=${opts.seed}&size=${opts.size}&speed=${opts.speed}`;
   await page.goto(target, { waitUntil: "load" });
   await page.waitForFunction(
     () => (window as unknown as RecorderWindow).__recorder_ready === true,

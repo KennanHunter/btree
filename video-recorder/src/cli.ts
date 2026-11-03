@@ -11,6 +11,7 @@ type Args = {
   fps: number;
   quality: number;
   scale: number;
+  speed: number;
   keep_frames: boolean;
 };
 
@@ -22,6 +23,7 @@ function parse(argv: string[]): Args {
     fps: 30,
     quality: 50,
     scale: 1,
+    speed: 2,
     keep_frames: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -33,6 +35,7 @@ function parse(argv: string[]): Args {
     else if (a === "--fps") args.fps = Number(argv[++i]);
     else if (a === "--quality") args.quality = Number(argv[++i]);
     else if (a === "--scale") args.scale = Number(argv[++i]);
+    else if (a === "--speed") args.speed = Number(argv[++i]);
     else if (a === "--keep-frames") args.keep_frames = true;
     else if (a === "--help" || a === "-h") {
       print_usage();
@@ -48,7 +51,7 @@ function parse(argv: string[]): Args {
 
 function print_usage() {
   console.error(
-    "Usage: record [--out <path>] [--seed <n>] [--size <n>] [--fps <n>] [--quality <0-100>] [--scale <n>] [--keep-frames]",
+    "Usage: record [--out <path>] [--seed <n>] [--size <n>] [--fps <n>] [--quality <0-100>] [--scale <n>] [--speed <n>] [--keep-frames]",
   );
 }
 
@@ -70,6 +73,7 @@ async function main() {
       deviceScaleFactor: args.scale,
       seed: args.seed,
       size: args.size,
+      speed: args.speed,
     });
     console.error(`captured ${frameCount} frames → encoding…`);
     const { bytes } = await encode({

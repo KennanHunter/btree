@@ -6,7 +6,11 @@ import {
   Show,
   untrack,
 } from "solid-js";
-import { OperationPlayer, describe_operation } from "component";
+import {
+  OperationPlayer,
+  describe_operation,
+  step_total_weight,
+} from "component";
 import { useTree } from "../tree-context";
 import { usePlayback } from "../playback-context";
 import { shellLayout } from "../layout/AppShell";
@@ -26,7 +30,19 @@ const FOLLOW_DEADZONE_PX = 24;
 
 export function TreeCanvas(props: Props) {
   const { tree, error, tick, activeOperation } = useTree();
-  const { index, speed } = usePlayback();
+  const { index, speed, setStepWeightFn } = usePlayback();
+
+  // Wire the active operation's per-step weight into the playback timer so
+  // multi-keyframe steps get `stepMs * total_weight` ms before the next
+  // index advance (matches the player's tween length).
+  createEffect(() => {
+    const op = activeOperation();
+    if (op) {
+      setStepWeightFn((i) => step_total_weight(op, i));
+    } else {
+      setStepWeightFn(() => 1);
+    }
+  });
   // Keep per-step animation duration locked to the playback interval so
   // the probe, slides, and other tweens finish right as the next step
   // begins. Playback advances every 1000/speed ms.

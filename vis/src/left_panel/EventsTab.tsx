@@ -1,37 +1,73 @@
 import { createEffect, createSignal, For, Show } from "solid-js";
-import type { BTreeEvent } from "component";
+import type { BTreeEvent, Snapshot } from "component";
 import { useTree } from "../tree-context";
 import { MAX_SPEED, MIN_SPEED, usePlayback } from "../playback-context";
 import styles from "./EventsTab.module.css";
 
-const describe = (e: BTreeEvent): string => {
+// Format a node id as "Node (v1, v2, ...)" using its current key values from
+// the step's snapshot. Falls back to "Node (?)" if the id isn't present —
+// happens for events emitted the instant before the snapshot includes the
+// node (e.g. the right sibling in split_slide_apart).
+const MAX_SHOWN_KEYS = 5;
+const n = (snap: Snapshot, id: number): string => {
+  const node = snap.nodes[id];
+  if (!node) return `Node (?)`;
+  const values = node.data_keys.map((k) => k.value);
+  const shown = values.slice(0, MAX_SHOWN_KEYS).join(", ");
+  const suffix = values.length > MAX_SHOWN_KEYS ? ", …" : "";
+  return `Node (${shown}${suffix})`;
+};
+
+// Resolve a key animation id → its numeric value by scanning the snapshot.
+const k = (snap: Snapshot, id: number): string => {
+  for (const node of Object.values(snap.nodes)) {
+    for (const key of node.data_keys) {
+      if (key.id === id) return `key ${key.value}`;
+    }
+  }
+  return `key (?)`;
+};
+
+const describe = (e: BTreeEvent, snap: Snapshot): string => {
   switch (e.t) {
-    case "insert_start":
-      return `insert ${e.value}`;
-    case "visit":
-      return `visit node ${e.node}`;
+    case "visit_read":
+      return `visit ${n(snap, e.node)}`;
     case "compare":
-      return `compare key ${e.key_id} (lo ${e.lo}, hi ${e.hi})`;
+      return `compare ${k(snap, e.key_id)} in ${n(snap, e.node)} (lo ${e.lo}, hi ${e.hi})`;
     case "select_descent_child":
-      return `select child ${e.to} (slot ${e.slot})`;
+      return `select child ${n(snap, e.to)} (slot ${e.slot})`;
     case "descend":
-      return `descend ${e.from} → ${e.to} (slot ${e.slot})`;
+      return `descend ${n(snap, e.from)} → ${n(snap, e.to)} (slot ${e.slot})`;
     case "ascend":
-      return `ascend ${e.from} → ${e.to}`;
+      return `ascend ${n(snap, e.from)} → ${n(snap, e.to)}`;
     case "found":
-      return `found key ${e.key} in node ${e.node}`;
+      return `found ${k(snap, e.key)} in ${n(snap, e.node)}`;
     case "not_found":
-      return `not found in node ${e.node}`;
-    case "insert_key":
-      return `insert key ${e.key} into node ${e.node} at ${e.index}`;
-    case "delete_key":
-      return `delete key ${e.key} from node ${e.node} at ${e.index}`;
-    case "split":
-      return `split node ${e.node} → right ${e.right} (median ${e.median}, ${e.kind})`;
+      return `not found in ${n(snap, e.node)}`;
+    case "visit_insert":
+      return `visit ${n(snap, e.node_id)}`;
+    case "insert_widen":
+      return `insert ${k(snap, e.key)} into ${n(snap, e.node)} at ${e.index}`;
+    case "insert_merge":
+      return `merge ${k(snap, e.key)} into ${n(snap, e.node)} at ${e.index}`;
+    case "insert_median_found":
+      return `median ${k(snap, e.key)} in ${n(snap, e.node)} at ${e.index}`;
+    case "insert_node_overfill":
+      return `overfull ${n(snap, e.node)}`;
+    case "split_slide_apart":
+      return `split slide: ${n(snap, e.node)} → right ${n(snap, e.right)} (median ${k(snap, e.median)}, ${e.kind})`;
+    case "split_pull_median":
+      return `split pull median ${k(snap, e.median)}: ${n(snap, e.node)} / ${n(snap, e.right)} (${e.kind})`;
+    case "split_parent_grows":
+      return `split parent grows: ${n(snap, e.node)} / ${n(snap, e.right)} (median ${k(snap, e.median)}, ${e.kind})`;
+    case "split_connect_to_children":
+      return `split connect: ${n(snap, e.node)} / ${n(snap, e.right)} (median ${k(snap, e.median)}, ${e.kind})`;
     case "grow_root":
-      return `grow root: ${e.old_root ?? "∅"} → ${e.new_root}`;
+      return `grow root: ${e.old_root === null ? "∅" : n(snap, e.old_root)} → ${n(snap, e.new_root)}`;
+    case "delete_key":
+      return `delete ${k(snap, e.key)} from ${n(snap, e.node)} at ${e.index}`;
     case "emit":
-      return `emit key ${e.key} from node ${e.node}`;
+      return `emit ${k(snap, e.key)} from ${n(snap, e.node)}`;
   }
 };
 
@@ -102,7 +138,7 @@ export function EventsTab() {
                 >
                   <span class={styles.idx}>{i() + 1}</span>
                   <span class={styles.tag}>{step.event.t}</span>
-                  <span class={styles.desc}>{describe(step.event)}</span>
+                  <span class={styles.desc}>{describe(step.event, step.snapshot)}</span>
                 </li>
               )}
             </For>

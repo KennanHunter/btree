@@ -8,6 +8,7 @@ import {
   fit_to_viewport,
   resolve_probe_at,
   step_count,
+  step_total_weight,
   type Ctx,
   type Operation,
   type OperationPlayerHandle,
@@ -18,11 +19,14 @@ const VIEW_W = 1280;
 const VIEW_H = 720;
 const PADDING = 48;
 const FPS = 30;
-const STEP_MS = 320;
 
 const url = new URL(window.location.href);
 const seed = Number(url.searchParams.get("seed") ?? 0xbeef);
 const size = Number(url.searchParams.get("size") ?? 10);
+// Match the site's base step duration (1000 / speed). Default speed=2 so
+// a unit-weight step is 500ms, same as the site at its default speed.
+const speed = Number(url.searchParams.get("speed") ?? 2);
+const STEP_MS = 1000 / speed;
 
 const workload = random(size, seed);
 const built = build_tree(
@@ -96,20 +100,9 @@ render(
   stage,
 );
 
-const total_weight_per_step = (step: number): number => {
-  const probe = resolve_probe_at(op, step);
-  const ctx: Ctx = {
-    op,
-    index: step,
-    probe_id: probe?.id,
-    probe_value: probe?.value,
-  };
-  return choreograph(ctx).reduce((a, kf) => a + kf.weight, 0) || 1;
-};
-
 const step_boundaries: number[] = [0];
 for (let i = 0; i < total_steps; i++) {
-  step_boundaries.push(step_boundaries[i] + total_weight_per_step(i) * STEP_MS);
+  step_boundaries.push(step_boundaries[i] + step_total_weight(op, i) * STEP_MS);
 }
 const total_ms = step_boundaries[total_steps];
 const total_frames = Math.max(1, Math.ceil((total_ms * FPS) / 1000));
