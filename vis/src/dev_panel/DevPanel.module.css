@@ -22,6 +22,11 @@
     color: var(--text-dim);
 }
 
+.captureRow {
+    display: flex;
+    gap: 8px;
+}
+
 .panel pre {
     margin: 0;
     background: var(--panel-sunken);

@@ -41,6 +41,7 @@ export function PlaybackProvider(props: { children: JSX.Element }) {
   };
 
   const stepBack = () => {
+    setIsPlaying(false);
     setIndex((i) => (i > 0 ? i - 1 : 0));
   };
 

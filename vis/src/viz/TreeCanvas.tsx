@@ -4,8 +4,9 @@ import {
   createSignal,
   onCleanup,
   Show,
+  untrack,
 } from "solid-js";
-import { OperationPlayer } from "component";
+import { OperationPlayer, describe_operation } from "component";
 import { useTree } from "../tree-context";
 import { usePlayback } from "../playback-context";
 import { shellLayout } from "../layout/AppShell";
@@ -14,15 +15,22 @@ type Props = {
   fitRequest: () => number;
   autoFit: () => boolean;
   follow: () => boolean;
-  onUserInteract?: () => void;
+  onUserInteract?: (kind: "pan" | "zoom") => void;
 };
 
 const MIN_FIT_WIDTH = 600;
 const MIN_FIT_HEIGHT = 400;
+// Screen-space distance (px) the followed point must drift before we re-pan.
+// Prevents per-frame micro-nudges from tween updates.
+const FOLLOW_DEADZONE_PX = 24;
 
 export function TreeCanvas(props: Props) {
   const { tree, error, tick, activeOperation } = useTree();
-  const { index } = usePlayback();
+  const { index, speed } = usePlayback();
+  // Keep per-step animation duration locked to the playback interval so
+  // the probe, slides, and other tweens finish right as the next step
+  // begins. Playback advances every 1000/speed ms.
+  const stepMs = () => 1000 / speed();
 
   const [zoom, setZoom] = createSignal(1);
   const [pan, setPan] = createSignal({ x: 0, y: 0 });
@@ -43,8 +51,19 @@ export function TreeCanvas(props: Props) {
     if (smoothTimer !== undefined) window.clearTimeout(smoothTimer);
     smoothTimer = window.setTimeout(() => setSmooth(false), 350);
   };
+  // Cancel any in-flight CSS transition so a zoom-driven re-center applies
+  // instantly — otherwise linear interpolation of translate+scale makes the
+  // followed point drift mid-transition and visibly snap back on arrival.
+  const stopSmooth = () => {
+    if (smoothTimer !== undefined) {
+      window.clearTimeout(smoothTimer);
+      smoothTimer = undefined;
+    }
+    setSmooth(false);
+  };
 
-  const notifyInteract = () => props.onUserInteract?.();
+  const notifyInteract = (kind: "pan" | "zoom") =>
+    props.onUserInteract?.(kind);
 
   // Does the player have anything to show? OperationPlayer only renders
   // dispatched Operations now — no `fallback` prop — so this is just a check
@@ -75,7 +94,7 @@ export function TreeCanvas(props: Props) {
 
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    notifyInteract();
+    notifyInteract("zoom");
     const el = canvasRef;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -84,6 +103,12 @@ export function TreeCanvas(props: Props) {
     const factor = Math.exp(-e.deltaY * 0.001);
     const z0 = zoom();
     const z1 = Math.max(0.05, Math.min(10, z0 * factor));
+    if (props.follow()) {
+      stopSmooth();
+      setZoom(z1);
+      panToAnimCenter();
+      return;
+    }
     const p = pan();
     setPan({
       x: mx - ((mx - p.x) * z1) / z0,
@@ -105,6 +130,7 @@ export function TreeCanvas(props: Props) {
     x: number;
     y: number;
     pan: { x: number; y: number };
+    notified: boolean;
   } | null = null;
   let lastTap: { t: number; x: number; y: number } | null = null;
   let doubleTapZoom: {
@@ -120,7 +146,6 @@ export function TreeCanvas(props: Props) {
 
   const onPointerDown = (e: PointerEvent) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
-    notifyInteract();
     const target = e.currentTarget as HTMLElement;
     target.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -145,6 +170,7 @@ export function TreeCanvas(props: Props) {
         };
         panStart = null;
         lastTap = null;
+        notifyInteract("zoom");
         return;
       }
     }
@@ -164,12 +190,14 @@ export function TreeCanvas(props: Props) {
         pan: pan(),
       };
       panStart = null;
+      notifyInteract("zoom");
     } else if (pointers.size === 1) {
       panStart = {
         pointerId: e.pointerId,
         x: e.clientX,
         y: e.clientY,
         pan: pan(),
+        notified: false,
       };
     }
   };
@@ -183,6 +211,12 @@ export function TreeCanvas(props: Props) {
       const factor = Math.exp(dy * 0.01);
       const z0 = doubleTapZoom.zoom;
       const z1 = Math.max(0.05, Math.min(10, z0 * factor));
+      if (props.follow()) {
+        stopSmooth();
+        setZoom(z1);
+        panToAnimCenter();
+        return;
+      }
       const { anchorX, anchorY, pan: p0 } = doubleTapZoom;
       setPan({
         x: anchorX - ((anchorX - p0.x) * z1) / z0,
@@ -199,6 +233,12 @@ export function TreeCanvas(props: Props) {
       const dist = Math.hypot(dx, dy);
       const z0 = pinchStart.zoom;
       const z1 = Math.max(0.05, Math.min(10, z0 * (dist / pinchStart.dist)));
+      if (props.follow()) {
+        stopSmooth();
+        setZoom(z1);
+        panToAnimCenter();
+        return;
+      }
       const { midx, midy, pan: p0 } = pinchStart;
       setPan({
         x: midx - ((midx - p0.x) * z1) / z0,
@@ -209,9 +249,15 @@ export function TreeCanvas(props: Props) {
     }
 
     if (panStart && panStart.pointerId === e.pointerId) {
+      const dx = e.clientX - panStart.x;
+      const dy = e.clientY - panStart.y;
+      if (!panStart.notified && Math.hypot(dx, dy) > 2) {
+        panStart.notified = true;
+        notifyInteract("pan");
+      }
       setPan({
-        x: panStart.pan.x + (e.clientX - panStart.x),
-        y: panStart.pan.y + (e.clientY - panStart.y),
+        x: panStart.pan.x + dx,
+        y: panStart.pan.y + dy,
       });
     }
   };
@@ -314,12 +360,40 @@ export function TreeCanvas(props: Props) {
     });
   };
 
-  createEffect(() => {
-    if (!props.follow()) return;
-    animCenter(); // subscribe
-    bumpSmooth();
-    panToAnimCenter();
-  });
+  // Dead-zone follow: only re-pan when the followed point drifts more than
+  // FOLLOW_DEADZONE_PX in screen space since the last applied pan. Keeps the
+  // camera still during tiny per-frame tween updates while still catching
+  // real step-to-step moves. Zoom changes are handled synchronously by the
+  // zoom handlers (not here) so we don't restart a smooth transition
+  // mid-gesture.
+  let lastFollow: { x: number; y: number } | null = null;
+  createEffect<boolean>((prevFollow) => {
+    const on = props.follow();
+    if (!on) {
+      lastFollow = null;
+      return on;
+    }
+    const c = animCenter();
+    if (!c) return on;
+    const z = untrack(zoom);
+    const justEnabled = !prevFollow;
+    if (!lastFollow || justEnabled) {
+      lastFollow = { x: c.x, y: c.y };
+      bumpSmooth();
+      panToAnimCenter();
+      return on;
+    }
+    const dScreen = Math.hypot(
+      (c.x - lastFollow.x) * z,
+      (c.y - lastFollow.y) * z,
+    );
+    if (dScreen > FOLLOW_DEADZONE_PX) {
+      lastFollow = { x: c.x, y: c.y };
+      bumpSmooth();
+      panToAnimCenter();
+    }
+    return on;
+  }, false);
 
   return (
     <div class={shellLayout.treePane} ref={paneRef}>
@@ -348,9 +422,13 @@ export function TreeCanvas(props: Props) {
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
+          <Show when={activeOperation()}>
+            {(op) => <div class="op-banner">{describe_operation(op())}</div>}
+          </Show>
           <OperationPlayer
             op={activeOperation()}
             index={index()}
+            stepMs={stepMs()}
             onLayout={setDims}
             onAnimationCenter={setAnimCenter}
             class={smooth() ? "tree-svg smooth" : "tree-svg"}

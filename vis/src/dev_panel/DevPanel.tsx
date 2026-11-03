@@ -1,9 +1,23 @@
 import { useTree } from "../tree-context";
+import { usePlayback } from "../playback-context";
 import { shellLayout } from "../layout/AppShell";
+import { Button } from "../ui/Button";
+import { capture_png, capture_svg } from "./capture";
 import styles from "./DevPanel.module.css";
 
 export function DevPanel() {
   const { initValues, committed, tree, tick, operations } = useTree();
+  const playback = usePlayback();
+
+  // Build a filename from the active operation + step index so successive
+  // captures land in separate files.
+  const capture_name = () => {
+    const ops = operations();
+    const idx = playback.index();
+    const op_kind = ops.at(-1)?.kind ?? "idle";
+    return `btree-${op_kind}-step${idx}`;
+  };
+
   return (
     <div class={`${styles.panel} ${shellLayout.devPane}`}>
       {(() => {
@@ -11,6 +25,25 @@ export function DevPanel() {
         const ops = operations();
         return (
           <>
+            <section>
+              <h3>capture</h3>
+              <div class={styles.captureRow}>
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => capture_svg(capture_name())}
+                >
+                  SVG
+                </Button>
+                <Button
+                  variant="secondary"
+                  small
+                  onClick={() => void capture_png(capture_name())}
+                >
+                  PNG
+                </Button>
+              </div>
+            </section>
             <section>
               <h3>init values ({initValues().length})</h3>
               <pre>{JSON.stringify(initValues())}</pre>

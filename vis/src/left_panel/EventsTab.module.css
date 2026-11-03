@@ -47,10 +47,11 @@
 
 .list li {
     display: grid;
-    grid-template-columns: 18px 56px 1fr;
+    grid-template-columns: 18px 1fr;
     align-items: baseline;
-    gap: 6px;
-    padding: 3px 6px 3px 8px;
+    column-gap: 6px;
+    row-gap: 2px;
+    padding: 4px 6px 4px 8px;
     background: var(--panel-sunken);
     border: 1px solid var(--border-sunken);
     border-left-width: 3px;
@@ -77,6 +78,7 @@
 .idx {
     color: var(--text-disabled);
     text-align: right;
+    grid-row: 1 / span 2;
 }
 
 .tag {

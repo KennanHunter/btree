@@ -7,6 +7,7 @@ export function Button(props: {
   variant?: Variant;
   shake?: boolean;
   subtle?: boolean;
+  small?: boolean;
   disabled?: boolean;
   type?: "button" | "submit" | "reset";
   onClick?: (e: MouseEvent) => void;
@@ -19,6 +20,7 @@ export function Button(props: {
       classList={{
         [styles.secondary]: props.variant === "secondary",
         [styles.subtle]: props.subtle,
+        [styles.small]: props.small,
         [styles.shake]: props.shake,
       }}
       disabled={props.disabled}

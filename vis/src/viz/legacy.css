@@ -24,6 +24,22 @@
     transition: transform 0.3s ease;
 }
 
+.op-banner {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    background: var(--surface-overlay, rgba(0, 0, 0, 0.6));
+    color: var(--text-on-overlay, #fff);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 500;
+    pointer-events: none;
+    z-index: 10;
+    white-space: nowrap;
+}
+
 .error {
     background: var(--danger-bg);
     border: 1px solid var(--danger-border);

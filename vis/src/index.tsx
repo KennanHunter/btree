@@ -38,9 +38,12 @@ import { FiGithub } from "solid-icons/fi";
 import { ViewControls } from "./ViewControls";
 
 function PlaybackControls() {
-  const { isPlaying, togglePlay, stepBack, stepForward, index, total, setIndex } =
+  const { isPlaying, togglePlay, stepBack, stepForward, index, total, setIndex, pause } =
     usePlayback();
-  const skipToStart = () => setIndex(0);
+  const skipToStart = () => {
+    pause();
+    setIndex(0);
+  };
   const skipToEnd = () => setIndex(Math.max(0, total() - 1));
   return (
     <>
@@ -129,9 +132,9 @@ function App() {
               fitRequest={fitTick}
               autoFit={autoFit}
               follow={follow}
-              onUserInteract={() => {
+              onUserInteract={(kind) => {
                 if (autoFit()) setAutoFit(false);
-                if (follow()) setFollow(false);
+                if (kind === "pan" && follow()) setFollow(false);
               }}
             />
             <Show when={devMode()}>

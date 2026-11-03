@@ -12,6 +12,8 @@ const describe = (e: BTreeEvent): string => {
       return `visit node ${e.node}`;
     case "compare":
       return `compare key ${e.key_id} (lo ${e.lo}, hi ${e.hi})`;
+    case "select_descent_child":
+      return `select child ${e.to} (slot ${e.slot})`;
     case "descend":
       return `descend ${e.from} → ${e.to} (slot ${e.slot})`;
     case "ascend":
@@ -35,7 +37,7 @@ const describe = (e: BTreeEvent): string => {
 
 export function EventsTab() {
   const { activeOperation } = useTree();
-  const { index, setIndex, speed, setSpeed } = usePlayback();
+  const { index, setIndex, speed, setSpeed, pause } = usePlayback();
 
   // The list row the user is "looking at". Normally this just mirrors the
   // playback cursor, but during a click-to-jump the row we highlight stays
@@ -46,6 +48,7 @@ export function EventsTab() {
 
   let pending: number | undefined;
   const jumpTo = (target: number) => {
+    pause();
     if (pending !== undefined) window.clearTimeout(pending);
     // Immediately pin the active row to the clicked step; the player
     // continues to render the previous step for 200ms, then catches up.
