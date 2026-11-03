@@ -3,6 +3,7 @@ import type { Key } from "./btree";
 export function lower_bound_binary_search(
   keys: Key[],
   value: number,
+  // used for highlighting current comparison values
   on_probe?: (mid: number, lo: number, hi: number) => void,
 ): number {
   let lo = 0;

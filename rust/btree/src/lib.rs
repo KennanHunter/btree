@@ -13,9 +13,11 @@ where
     [(); FANOUT - 1]:,
 {
     Leaf {
+        occupancy: usize,
         data: [usize; FANOUT - 1],
     },
     Internal {
+        occupancy: usize,
         data: [usize; FANOUT - 1],
         children: [usize; FANOUT],
     },

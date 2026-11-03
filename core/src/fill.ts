@@ -11,17 +11,26 @@ export function shuffle(values: number[]): number[] {
     const j = Math.floor(Math.random() * (i + 1));
     [values[i], values[j]] = [values[j], values[i]];
   }
+
   return values;
 }
 
-export function fill_sequential(tree: Tree, start: number, end: number): number[] {
+export function fill_tree_sequential(
+  tree: Tree,
+  start: number,
+  end: number,
+): number[] {
   const values = range(start, end);
-  for (const v of values) tree.insert(v);
+
+  for (const v of values) tree.insert({ value: v, id: tree.ids.allocate_id() });
+
   return values;
 }
 
-export function fill_random(tree: Tree, start: number, end: number): number[] {
+export function fill_tree_random(tree: Tree, start: number, end: number): number[] {
   const values = shuffle(range(start, end));
-  for (const v of values) tree.insert(v);
+
+  for (const v of values) tree.insert({ value: v, id: tree.ids.allocate_id() });
+
   return values;
 }
