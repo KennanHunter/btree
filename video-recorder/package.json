@@ -1,0 +1,26 @@
+{
+  "name": "video-recorder",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "record": "tsx src/cli.ts",
+    "typecheck": "tsc && tsc -p tsconfig.host.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "benchmark": "workspace:*",
+    "component": "workspace:*",
+    "core": "workspace:*",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "playwright": "^1.49.0",
+    "tsx": "^4.19.2",
+    "typescript": "~7.0.2",
+    "vite": "^5.4.11",
+    "vite-plugin-solid": "^2.11.0",
+    "vitest": "^2.1.9"
+  }
+}
