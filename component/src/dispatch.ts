@@ -31,13 +31,18 @@ export function dispatch(tree: Tree, req: OpRequest): Operation {
       return run(tree, req, (t) => t.search(req.value));
     case "insert":
       return run(tree, req, (t) => {
-        t.insert(req.value);
-        return { type: "Insert", value: req.value };
+        const key = { value: req.value, id: t.ids.allocate_id() };
+        t.insert(key);
+        return { type: "Insert", value: req.value, key };
       });
     case "bulk_insert":
       return run(tree, req, (t) => {
-        for (const v of req.values) t.insert(v);
-        return { type: "BulkInsert", values: req.values };
+        const keys = req.values.map((v) => ({
+          value: v,
+          id: t.ids.allocate_id(),
+        }));
+        for (const k of keys) t.insert(k);
+        return { type: "BulkInsert", values: req.values, keys };
       });
     case "delete":
       throw new NotImplementedError("delete");

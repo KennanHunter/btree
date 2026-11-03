@@ -39,6 +39,7 @@ export function recording_recorder(): BTreeEventRecorder {
 // runs do zero `structuredClone`s.
 function silent_recorder(): BTreeEventRecorder {
   return {
+    needs_snapshot: false,
     record() {
       /* drop */
     },
@@ -59,7 +60,8 @@ export function build_tree(
   if (result.error) {
     return { ok: false, error: result };
   }
-  for (const v of init_values) result.tree.insert(v);
+  for (const v of init_values)
+    result.tree.insert({ value: v, id: result.tree.ids.allocate_id() });
   // Swap in a real recorder now that init is done; future dispatches want
   // their events captured.
   result.tree.event_recorder = recording_recorder();

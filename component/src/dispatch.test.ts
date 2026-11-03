@@ -40,7 +40,7 @@ describe("dispatch(insert)", () => {
     const tree = fresh();
     const op = dispatch(tree, { kind: "insert", value: 5 });
     expect(op.kind).toBe("insert");
-    expect(op.result).toEqual({ type: "Insert", value: 5 });
+    expect(op.result).toMatchObject({ type: "Insert", value: 5 });
     expect(step_count(op)).toBeGreaterThan(0);
     expect(step_at(op, 0)).toBeDefined();
   });
