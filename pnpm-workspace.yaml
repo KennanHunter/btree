@@ -2,6 +2,8 @@ packages:
   - 'core'
   - 'component'
   - 'vis'
+  - 'benchmark'
+  - 'video-recorder'
 allowBuilds:
   esbuild: true
   workerd: true

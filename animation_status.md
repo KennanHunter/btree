@@ -1,275 +1,285 @@
 # Animation pipeline — who owns what
 
-End-to-end: a user action produces a dispatched operation, which carries a
-list of `(snapshot, event)` steps; the UI holds a cursor over those steps
-and renders the one at the cursor through `OperationPlayer`.
+End-to-end: a user action is dispatched as a `BTreeOperation`, which carries
+a list of `(snapshot, event)` steps. The UI holds a cursor over those steps.
+On every change to `(operation, cursor)`, a **choreographer** turns the step
+into one or more **keyframes**, each one a fully-laid-out `Pose`. A JS
+**player** tweens between consecutive poses on `requestAnimationFrame`, and
+the `OperationPlayer` component renders whatever the player's current pose
+says.
 
 ```
-UI action ──▶ dispatch() ──▶ Tree.insert / Tree.search
-                               │  (mutations + events)
-                               ▼
-                     BTreeEventRecorder.record
-                       (event, snapshot thunk)
-                               │
-                               ▼
-                        rollup_operation ──▶ Operation
-                                              │
-                             ┌────────────────┴─────────────────┐
-                             ▼                                  ▼
-                      operations[] signal                 OperationPlayer
-                      (tree-context)                      (component/view)
-                             │                                  ▲
-                             ▼                                  │
-                      activeOperation ──▶ cursor ──▶ step_at ───┘
-                                       (playback-context, via PlaybackBridge)
+UI action
+  ──▶ dispatch() ──▶ Tree.insert / Tree.search ──▶ BTreeEventRecorder
+                       (mutation + event stream)        │
+                                                        ▼
+                                                 rollup_operation
+                                                        │
+                                                        ▼
+                                                   Operation
+                                                        │
+                             ┌──────────────────────────┴───────────────────┐
+                             ▼                                              ▼
+                     operations[] signal                             OperationPlayer
+                     (vis/tree-context)                              (component/view)
+                             │                                              ▲
+                             ▼                                              │
+                     activeOperation ──▶ cursor ──▶ step_at ──▶ choreograph ─┤
+                                       (vis/playback-context)                │
+                                                                             ▼
+                                                                     player.tween ──▶ shown pose
 ```
 
-## Layer responsibilities
+The replay is **not** done by mutating the tree. Each step already carries
+the snapshot it describes, and the choreographer treats that snapshot as a
+pure input to a scene builder.
 
-### `core` — raw tree + event emission
+## Core (`core/src/btree/`)
 
-The data structure and its event stream. Knows nothing about replay,
-dispatch, or UI.
+The data structure, mutation primitives, and the event stream. Knows nothing
+about replay, dispatch, or UI.
 
-- **Tree & data types** — [core/src/btree/btree.ts:12](core/src/btree/btree.ts)
-  (`Key`, `NodeData`, `TreeData`, `Snapshot`, `Tree`).
-- **Snapshot caching + mutation-bumped version counter** —
-  [core/src/btree/btree.ts:49](core/src/btree/btree.ts) (`MUTATION_EVENTS`
-  set), [btree.ts:66](core/src/btree/btree.ts) (`version` /
-  `cached_version` / `cached_snapshot`), [btree.ts:83](core/src/btree/btree.ts)
-  (`snapshot()` returns the cached clone when `version` is unchanged),
-  [btree.ts:92](core/src/btree/btree.ts) (`record()` bumps `version` only on
-  mutation events). A run of read events (search) shares one clone; each
-  mutation forces a fresh one.
-- **Shared predicates / helpers** —
-  [btree.ts:126](core/src/btree/btree.ts) (`is_node_bplus_internal`),
-  [btree.ts:130](core/src/btree/btree.ts) (`holds_key` — true only in
-  leaves or classic-B-tree internals; B+ internal matches are routing hits),
-  [btree.ts:138](core/src/btree/btree.ts) (`child_index_for` — one place
-  for the B+ "match → step right" and post-split "value > median → step
-  right" rules), [btree.ts:155](core/src/btree/btree.ts) (`find_position`
-  — the single `compare`-recording site shared by linear and binary
-  search).
-- **Mutation primitives + their events** —
-  [btree.ts:179](core/src/btree/btree.ts) (`insert_into_leaf` → emits
-  `insert_key`), [btree.ts:188](core/src/btree/btree.ts) (`absorb_split`
-  → parent-side splice + `insert_key` for the median),
-  [btree.ts:200](core/src/btree/btree.ts) (`insert` — emits
-  `insert_start` marker; empty-tree root path goes through
-  `new_node` + `insert_into_leaf`),
-  [btree.ts:226](core/src/btree/btree.ts) (`grow_root` — emits
-  `grow_root`), [btree.ts:split](core/src/btree/btree.ts) (emits `split`
-  with `kind: btree | bplus_leaf | bplus_internal`).
-- **Read events** emitted during `search` / `search_in_node` —
-  `visit`, `compare`, `descend`, `found`, `not_found`.
-- **Event + Step + Operation shapes** —
-  [core/src/btree/events.ts:8](core/src/btree/events.ts) (`BTreeEvent`:
-  `insert_start`, read events, mutation events, reserved `delete_key` /
-  `emit`),
-  [events.ts:42](core/src/btree/events.ts) (`Step = { snapshot, event }`),
-  [events.ts:50](core/src/btree/events.ts)
-  (`BTreeOperation = { kind, steps, final }`).
-- **`BTreeEventRecorder` interface** —
-  [events.ts:56](core/src/btree/events.ts). The contract is
-  `record(event, snapshot: () => Snapshot)` (thunk, so a silent recorder
-  pays zero clones) + `rollup_operation(kind, final)`. Core does not supply
-  an implementation.
-- **Config checks** —
-  [core/src/btree/config.ts](core/src/btree/config.ts).
-  `check_config_for_errors` enforces `fanout ≥ 2` and blocks the
-  known-broken combos (top-down requires even fanout; top-down + fanout = 2
-  returns the `TopDownFanoutTwo` error).
-  `check_config_for_warnings` returns a flat
-  `TreeConfigurationWarning[]` — currently fires `FanoutTwoBottomUp` at
-  fanout 2 bottom-up with the long-form 2-3 tree advisory.
+- **Tree & types** — [btree.ts](core/src/btree/btree.ts) (`Key`, `NodeData`,
+  `TreeData`, `Snapshot`, `Tree`). `AnimationID = number` (stable id per
+  node/key for the duration of the tree).
+- **Snapshot caching** — [btree.ts:52–64](core/src/btree/btree.ts). The
+  `MUTATION_EVENTS` set names the events that bump the clone version:
+  `insert_merge`, `split_slide_apart`, `grow_root`, `delete_key`. Non-
+  mutation events reuse the cached clone. In particular, **the four
+  split sub-events share one clone** — `split_slide_apart` is recorded
+  first and owns the fresh clone.
+- **Mutation primitives** —
+  [`insert_into_leaf`](core/src/btree/btree.ts) emits `insert_widen`
+  then `insert_merge`; [`split`](core/src/btree/btree.ts) performs the
+  structural change but **records nothing** — recording is the caller's
+  job so the first event the UI sees already reflects a fully-connected
+  tree. [`absorb_split`](core/src/btree/btree.ts) and
+  [`grow_root`](core/src/btree/btree.ts) run `record_split_phases`
+  (emits four split sub-events) then record `insert_merge` or
+  `grow_root` respectively.
+- **Insert path emissions** — `insert_bottom_up` and `insert_top_down`
+  emit `visit_insert` on entry and `descend` before recursion, so the
+  UI can "park a probe" above the current node and slide it between
+  nodes during the descent.
+- **Empty-tree fast path** — [btree.ts:214–221](core/src/btree/btree.ts).
+  Inserting into an empty tree creates a leaf **with the key already
+  inside** and records just one `grow_root` event — no `visit_insert` /
+  `insert_widen` / `insert_merge` triple, so there's no probe animation
+  for the first key.
+- **Event union** — [events.ts](core/src/btree/events.ts). Current
+  variants:
+  - Reads: `visit_read`, `found`, `not_found`, `compare`, `descend`,
+    `ascend`.
+  - Insert bookkeeping: `visit_insert`, `insert_widen`, `insert_merge`,
+    `insert_median_found`, `insert_node_is_overflowing`.
+  - Split (four phases, same payload, interpreted by the choreographer):
+    `split_slide_apart` → `split_pull_median` → `split_parent_grows` →
+    `split_connect_to_children`.
+  - `grow_root`, reserved `delete_key` / `emit`.
 
-Not here: a recorder instance, dispatch, result wrapping, rendering.
-
-### `component` — dispatch, operation shape, Solid renderer
+## Component (`component/src/`)
 
 Everything the visualiser sees of the tree model. One re-export surface so
-`vis` only imports from `"component"`.
+`vis` only ever imports from `"component"`.
 
-- **Package entry** —
-  [component/src/index.ts](component/src/index.ts). Re-exports every
-  core type (`Tree`, `Snapshot`, `Key`, `BTreeEvent`, …), the two config
-  checkers, and the local types below.
-- **`build_tree(config, init_values?)`** —
-  [component/src/build.ts:46](component/src/build.ts). Wraps
-  `create_b_tree` with a `silent_recorder` during init so the init-insert
-  run performs **zero** clones; then swaps the tree's recorder to a
-  `recording_recorder` for subsequent dispatches. The UI never constructs
-  a `BTreeEventRecorder` itself.
-- **`dispatch(tree, req)`** —
-  [component/src/dispatch.ts:28](component/src/dispatch.ts). Single entry
-  for every tree action. Internals via `run()`
-  [dispatch.ts:49](component/src/dispatch.ts): `clear` →
-  `req`-specific mutation → `rollup_operation(req.kind, tree.snapshot())`
-  → spread into `Operation` with `request` + `result`.
-- **`OpRequest` union** —
-  [dispatch.ts:14](component/src/dispatch.ts).
-  `search`, `insert`, `bulk_insert` are live; `delete` and `range_search`
-  are reserved types that throw `NotImplementedError`.
-- **`Operation = BTreeOperation & { request, result }`** —
-  [component/src/operation.ts:30](component/src/operation.ts). The `kind`,
-  `steps`, `final` fields are inherited from core's `BTreeOperation`; no
-  restatement.
-- **`step_at(op, i)` / `step_count(op)`** —
-  [operation.ts:35](component/src/operation.ts). The entire "replay
-  driver" surface — each `Step` already carries the snapshot the UI
-  should render.
-- **Shapes & measurement** —
-  [component/src/shapes.ts:56](component/src/shapes.ts) (`layout`),
-  [shapes.ts:155](component/src/shapes.ts) (`build_shapes`),
-  [shapes.ts:163](component/src/shapes.ts) (`measure`). Pure `TreeData` →
-  tagged `Shape[]` (each shape carries its `node` / `key` / `slot`), so
-  highlighting is a lookup, not a diff.
-- **Highlight derivation** —
-  [component/src/highlight.ts:13](component/src/highlight.ts).
-  `highlight_from(event)` → `{ nodes, keys, edges }` sets covering every
-  variant (`insert_start` is a no-op marker; the follow-up mutation
-  events carry the emphasis).
-- **`<OperationPlayer op? index? fallback? onLayout? />`** —
-  [component/src/view.tsx:40](component/src/view.tsx). The exposed Solid
-  component. Picks the frame
-  (`step_at(op, index).snapshot` → `op.final` → `fallback`), computes
-  shapes, overlays the step's highlight, renders SVG. Calls `onLayout`
-  with the laid-out dimensions so pan/zoom can live outside.
+### Dispatch + operation shape
 
-Not here: operation history, playback clock, pan/zoom, local storage,
-Solid contexts.
+- **`dispatch(tree, req)`** — [dispatch.ts](component/src/dispatch.ts).
+  Allocates a `Key` for inserts up front (so the id/value map is
+  recoverable even when the value is a duplicate and the key never
+  enters the tree), runs the mutation, and rolls up events into an
+  `Operation`. The allocated keys are attached to the result as
+  `InsertResult.key` / `BulkInsertResult.keys`.
+- **`Operation`** — [operation.ts](component/src/operation.ts). Core's
+  `BTreeOperation` decorated with `request` and `result`. `step_at(op, i)`
+  is the entire "replay driver" surface — each `Step` carries the
+  snapshot the UI should render.
 
-### `vis/src/tree-context.tsx` — operation history + tree ownership
+### Pose, Scene, Layout
 
-State that outlives one dispatch: the current tree, past operations, the
-active one. Hydrates `treeConfig` / `initValues` from
-`local-storage-context`.
+Scene → Pose is the pure half of the pipeline. The choreographer builds
+scenes; the player + renderer consume poses.
 
-- **Builds / rebuilds the tree** via `build_tree` on mount, on config
-  change, on `clearData` —
-  [tree-context.tsx:84](vis/src/tree-context.tsx),
-  [tree-context.tsx:113](vis/src/tree-context.tsx) (`updateConfig`),
-  [tree-context.tsx:149](vis/src/tree-context.tsx) (`clearData`).
-- **`operations: Accessor<Operation[]>`** signal —
-  [tree-context.tsx:80](vis/src/tree-context.tsx). Appended through
-  `pushOperation` [tree-context.tsx:88](vis/src/tree-context.tsx).
-- **`activeOperation`** = latest op —
-  [tree-context.tsx:91](vis/src/tree-context.tsx). What the `PlaybackBridge`
-  (and the eventual viz rewrite) binds to.
-- **`insertValues()`** — [tree-context.tsx:123](vis/src/tree-context.tsx).
-  Dispatches `{ kind: "insert", value }` per value and pushes each
-  resulting `Operation`.
-- **`draftError` / `draftWarnings`** —
-  [tree-context.tsx:100](vis/src/tree-context.tsx),
-  [tree-context.tsx:107](vis/src/tree-context.tsx). Reactive wrappers
-  over the two core checkers; `ConfigTab` renders both.
-- **`SearchTab`** calls `dispatch` directly and uses the exported
-  `pushOperation` —
-  [vis/src/right_panel/SearchTab.tsx:19](vis/src/right_panel/SearchTab.tsx).
+- **`Pose` and `Keyframe`** — [pose.ts](component/src/pose.ts). A pose is
+  a fully laid-out frame keyed by stable `AnimationID`s plus an optional
+  floating `ProbeBox` (the value being inserted during a descent) and a
+  `hidden` set of DOM ids that should not render (used e.g. to mask the
+  parent→child edges during the orphan phases of split). A keyframe is
+  `{ pose, weight, ease }` — one phase of a step's animation.
+- **`Scene`** — [scene.ts](component/src/scene.ts). A logical description
+  of what to draw at one moment in time. Has no coordinates. Field by
+  field:
+  - `root`, `nodes` — the underlying tree. Started from a snapshot via
+    `scene_from_snapshot` which deep-copies the arrays so builders
+    below can mutate without touching the snapshot.
+  - `probe?: ProbeState` — the insert probe, with an `above_node` or
+    `in_slot` attachment.
+  - `floating_keys?: FloatingKey[]` — keys rendered outside any node's
+    `data_keys` (e.g. the median pulled out of the splitting node). Two
+    anchor kinds: `between_children` (midpoint of two sibling subtrees
+    at the children row) and `at_point` (explicit x, y, pre-shift).
+  - `hidden_edges?: Set<string>` — edge ids the layout should still
+    compute (so geometry stays consistent across phases) but the pose
+    should mark hidden.
+  - `node_overrides?` — after normal layout, each `(id, pos)` shifts the
+    *subtree* rooted at `id` so its node sits at `pos`. Used to spread
+    L and R apart in `split_slide_apart`.
+  - `render_as_leaf?: Set<AnimationID>` — the node renders without its
+    slot row (`node_h = CELL_H`). The slot cells are still placed but
+    with `h = 0` so the lerp to normal rendering grows them from a flat
+    line into a full cell. Used for the parent during the "children
+    detached" phases of a fresh-root split so phase 4 reads as "the
+    parent extends downwards".
+  - `extra_nodes?` — subtrees to render *outside* the normal root
+    traversal, at explicit `(x, y)`. Used by `split_slide_apart` to
+    show the new right half as an orphan sibling of the shrunken left
+    before the parent has absorbed it.
+  - Builders: `attach_probe_above`, `reserve_slot`,
+    `remove_key_from_node`, `remove_child_from_node`,
+    `with_floating_key`, `with_hidden_edges`, `override_node_pos`,
+    `render_node_as_leaf`, `with_extra_node`.
+- **`layout_scene(scene) → Pose`** — [scene.ts](component/src/scene.ts).
+  Four stages, each pure:
+  1. **measure** every subtree's bounding box (recursive).
+  2. **place** nodes/keys/slot-cells/edges, with the tree sitting below
+     a fixed probe-band of vertical padding so the pose's y position
+     doesn't jump when the probe comes and goes.
+  3. **place extras** — apply `node_overrides` (subtree shifts) then
+     `extra_nodes` (orphan subtrees) then the probe then floating keys.
+  4. **normalize** — bounding-box across *every* placed element
+     (including overrides, extras, probe, floating), then shift so
+     `(minX, minY) = (0, 0)` and emit the pose's `width`/`height`.
 
-Not here: playback cursor, rendering, how an operation becomes a frame.
+### Choreographer
 
-### `vis/src/playback-context.tsx` — cursor + clock
+- **`choreograph(ctx) → Keyframe[]`** —
+  [choreograph.ts](component/src/choreograph.ts). Switch on the event
+  kind. Insert-path events attach/park the probe:
+  - `visit_insert` / `descend` → probe above the current node.
+  - `insert_widen` → `reserve_slot` so the leaf already renders at its
+    final width, with the probe filling the reserved cell. The pose
+    hides the placeholder key by id.
+  - `insert_merge` / `insert_median_found` → plain snapshot, no probe
+    (the key is in the tree now).
+  - Default (read events, overflow marker) → plain snapshot. If the
+    operation is still carrying a probe, `current_probe_target` walks
+    back to the most recent `visit_insert` / `descend` / `insert_widen`
+    and re-attaches, so compares and visit_reads during a descent
+    don't drop the probe.
+  - Each of the four split events delegates to `split_phase_scene`.
+- **Split, four phases** — `split_phase_scene`:
+  1. **`split_slide_apart`** — parent stripped back to its pre-split
+     size (median removed from `data_keys`, right removed from
+     `children`). The right half is `with_extra_node`'d at
+     `L.right + SPREAD` (where `SPREAD = CELL_W + 2 * H_GAP`, chosen so
+     the open channel between L and R has room for the median plus one
+     H_GAP on each side). Any siblings right of L in the stripped
+     parent shift by `SPREAD + r_w` so they don't collide. For a
+     fresh root (parent is new and has no grandparent), the parent is
+     elided entirely via `scene.root = ev.node`. The floating median
+     is anchored in the middle of the channel at L's row — centred
+     between L and R with H_GAP of gap on both sides.
+  2. **`split_pull_median`** — same scaffold as phase 1 except the
+     floating median's y is lifted to the midpoint between the
+     children row and the natural parent row (or held in place if the
+     parent isn't visible). The lerp from phase 1 reads as "the median
+     climbs toward where it's about to land."
+  3. **`split_parent_grows`** — the natural (fully-connected) snapshot
+     with the parent→L and parent→R edges hidden. The lerp from phase
+     2 pulls the median the rest of the way into the parent slot and
+     widens the parent in one coherent motion. The right half slides
+     from its orphan position into its real child slot.
+  4. **`split_connect_to_children`** — the natural snapshot with
+     nothing stripped and no edges hidden. Edges snap in; if the
+     parent was render-as-leaf during phase 3, the slot row extends
+     downwards here.
+- **`resolve_probe_at(op, index)`** — walks back to the most recent
+  `visit_insert` and returns `{id, value}`, with the value looked up
+  from the operation's result (`Insert`/`BulkInsert`) — a snapshot
+  lookup would miss values that were duplicates and never entered the
+  tree. Returns undefined once we hit `insert_merge` /
+  `insert_median_found` (the probe has dissolved into the tree).
 
-Generic timeline state, unaware of what's being played.
+### Player
 
-- `isPlaying`, `index`, `total`, `speed` signals + setters —
-  [playback-context.tsx:30](vis/src/playback-context.tsx).
-- `setIndex` is exported so the bridge can rewind on operation change —
-  [playback-context.tsx:17](vis/src/playback-context.tsx).
-- `stepForward` / `stepBack` / `togglePlay` + the autoplay interval —
-  [playback-context.tsx:34–63](vis/src/playback-context.tsx).
+- **`create_player(stepMs)`** — [player.ts](component/src/player.ts).
+  JS-driven `requestAnimationFrame` tween between poses.
+  `tween_through(from, kfs)` chains all the choreographer's keyframes:
+  the first one tweens `from → kfs[0].pose`, each subsequent one takes
+  `kfs[i-1].pose → kfs[i].pose`, and each phase's duration is
+  `stepMs * weight`. Non-contiguous index jumps (scrubs, operation
+  changes) snap directly to the last keyframe's pose so the user
+  doesn't see an animation of a step they didn't play into.
+- **`lerp_pose(from, to, t)`**:
+  - **Nodes** — position interpolated. `w` interpolated **except for
+    leaves**: a leaf's width changes in integer cell counts (insert
+    widen, split shrink) and interpolating produces an awkward half-
+    cell rect, so leaves snap.
+  - **Keys** — fully interpolated (position + size).
+  - **Slots, edges** — fully interpolated.
+  - **Probe** — fully interpolated. If one pose has it and the other
+    doesn't, we use whichever exists (so the probe appears or
+    disappears cleanly in one tick rather than popping mid-tween).
+  - **Width / height** — pose dimensions are interpolated so the SVG
+    container follows the tween.
+- The player reads `shown()` inside `tween_through`. The driving
+  `createEffect` in `view.tsx` wraps `player.update(...)` in `untrack`
+  so the `shown` reads don't register as effect dependencies —
+  otherwise every rAF tick would re-fire the effect and snap the tween
+  to its destination.
 
-Explicitly decoupled from `tree-context`.
+### View
 
-### `vis/src/PlaybackBridge.tsx` — the operation → timeline bridge
-
-Renders nothing. Mounted once in `App` inside both providers (via a
-fragment next to the `<AppShell>`) so the binding survives left-panel
-tab switches.
-
-- Pulls `activeOperation` from `tree-context` and
-  `setTotal` / `setIndex` from `playback-context`.
-- `createEffect`: whenever `activeOperation` changes, rewinds the cursor
-  to 0 and resizes the timeline to `op.steps.length` (or 0 if no op).
-
-### `vis/src/left_panel/EventsTab.tsx` — the event list view
-
-Pure renderer now; no effects.
-
-- Reads `activeOperation` and the playback `index`.
-- Renders one `<li>` per `step.event` of the active op, with the active
-  class driven by `index()`.
-- `describe(event)` is the event → human-string function and has a case
-  per `BTreeEvent` variant (including `insert_start`, `split`, `grow_root`,
-  reserved `delete_key` / `emit`).
-
-### `vis/src/right_panel/ConfigTab.tsx` — config form + diagnostics
-
-- Renders the fanout / insert_mode / search_mode / inner_nodes_have_data
-  inputs. `fanout` input `min` is 2.
-- Shows `draftError()` in a red callout and iterates `draftWarnings()`
-  through a warm-toned callout
-  ([vis/src/ui/Error.module.css](vis/src/ui/Error.module.css) —
-  `.error` / `.warning` / `.inline`). Line-height / sizing matches the
-  info panel.
-- The `Update configuration` button is disabled when the draft has an
-  error.
-
-### `vis/src/viz/TreeCanvas.tsx` — pan / zoom / fit
-
-Currently renders `tree.data` directly through local `layout.ts` /
-`TreeSvg`. Does not consume operations yet — that's the next migration.
-Pan/zoom/fit math lives here
-([TreeCanvas.tsx:47–63](vis/src/viz/TreeCanvas.tsx)).
-
-Layout note: on desktop (≥ 701 px) `.main` spans the icon row too (see
-[vis/src/layout/AppShell.module.css](vis/src/layout/AppShell.module.css)),
-so the SVG canvas extends under the icons. The icon row sits at
-`z-index: 2` with `pointer-events: none` so clicks hit the icons but
-pan/zoom gestures pass through to the SVG between them.
-
-Planned swap: `TreeCanvas` renders
-`<OperationPlayer op={activeOperation()} index={index()} fallback={tree.data} onLayout={...} />`
-and feeds `onLayout` dims into the existing fit math.
+- **`<OperationPlayer op? index? stepMs? onLayout? onAnimationCenter? />`** —
+  [view.tsx](component/src/view.tsx).
+  - Memoises `resolve_probe_at(op, index)` per step.
+  - Memoises `highlight_at(op, index)` per step for colour emphasis
+    (not for geometry — geometry comes from the pose).
+  - On `(op, index, probe_meta)` change, builds a `Ctx` and calls
+    `player.update(ctx, prev_index)` inside `untrack`.
+  - Renders four `<For>` loops keyed by stable id (node, slot, key,
+    edge) plus a `<Show>` for the probe. SVG `width`/`height` and
+    `onLayout` are driven by the *interpolated* pose, so the container
+    tweens along with the content.
+- The `<rect>` / `<g>` elements use plain inline transforms — no CSS
+  transitions. All motion comes from Solid re-rendering with the
+  player's interpolated values each rAF.
+- **`highlight_from(event)`** — [highlight.ts](component/src/highlight.ts).
+  Pure event → `{nodes, keys, edges}` sets. Covers every current event
+  variant including the four split sub-events (same payload shape).
 
 ## Where each concern lives — quick lookup
 
-| Concern                                   | File                                                              |
-| ----------------------------------------- | ----------------------------------------------------------------- |
-| B-tree mutation logic + helpers           | [core/src/btree/btree.ts](core/src/btree/btree.ts)                 |
-| Event union + Step/Operation shape        | [core/src/btree/events.ts](core/src/btree/events.ts)               |
-| Snapshot cache + version counter          | [core/src/btree/btree.ts:66](core/src/btree/btree.ts)              |
-| Config errors + warnings                  | [core/src/btree/config.ts](core/src/btree/config.ts)               |
-| UI-facing tree construction               | [component/src/build.ts](component/src/build.ts)                   |
-| Running an op (clear → run → rollup)      | [component/src/dispatch.ts:49](component/src/dispatch.ts) (`run`)  |
-| Operation = model op + request/result     | [component/src/operation.ts](component/src/operation.ts)           |
-| Layout + measurement                      | [component/src/shapes.ts](component/src/shapes.ts)                 |
-| Event → highlight sets                    | [component/src/highlight.ts](component/src/highlight.ts)           |
-| Render a frame                            | [component/src/view.tsx](component/src/view.tsx)                   |
-| Operation history, active op              | [vis/src/tree-context.tsx](vis/src/tree-context.tsx)               |
-| Playback cursor + clock                   | [vis/src/playback-context.tsx](vis/src/playback-context.tsx)       |
-| Active-op → timeline bridge               | [vis/src/PlaybackBridge.tsx](vis/src/PlaybackBridge.tsx)           |
-| Event list view                           | [vis/src/left_panel/EventsTab.tsx](vis/src/left_panel/EventsTab.tsx) |
-| Config form + warnings/errors UI          | [vis/src/right_panel/ConfigTab.tsx](vis/src/right_panel/ConfigTab.tsx) |
-| Pan / zoom / fit                          | [vis/src/viz/TreeCanvas.tsx](vis/src/viz/TreeCanvas.tsx)           |
-| Shell layout (SVG spans icon row)         | [vis/src/layout/AppShell.module.css](vis/src/layout/AppShell.module.css) |
+| Concern                                       | File                                                                 |
+| --------------------------------------------- | -------------------------------------------------------------------- |
+| B-tree mutation + split/insert emissions      | [core/src/btree/btree.ts](core/src/btree/btree.ts)                   |
+| Event union                                   | [core/src/btree/events.ts](core/src/btree/events.ts)                 |
+| Snapshot cache + mutation markers             | [core/src/btree/btree.ts:52–64](core/src/btree/btree.ts)             |
+| Dispatch + id-preserving result               | [component/src/dispatch.ts](component/src/dispatch.ts)               |
+| `Pose` / `Keyframe` / `ProbeBox` types        | [component/src/pose.ts](component/src/pose.ts)                       |
+| Scene type + builders + `layout_scene`        | [component/src/scene.ts](component/src/scene.ts)                     |
+| Event → keyframes                             | [component/src/choreograph.ts](component/src/choreograph.ts)         |
+| Multi-phase rAF player                        | [component/src/player.ts](component/src/player.ts)                   |
+| Easing functions                              | [component/src/ease.ts](component/src/ease.ts)                       |
+| SVG renderer + layout constants + box types   | [component/src/view.tsx](component/src/view.tsx)                     |
+| Event → highlight sets                        | [component/src/highlight.ts](component/src/highlight.ts)             |
+| Operation history, active op                  | [vis/src/tree-context.tsx](vis/src/tree-context.tsx)                 |
+| Playback cursor + clock                       | [vis/src/playback-context.tsx](vis/src/playback-context.tsx)         |
+| SVG/PNG capture utility                       | [vis/src/dev_panel/capture.ts](vis/src/dev_panel/capture.ts)         |
 
 ## Invariants worth remembering
 
-- Nothing outside `core` constructs a `BTreeEventRecorder`.
-  `component/build.ts` creates them for the UI (silent during init,
-  recording for dispatches); `core/src/btree/btree.test.ts` instantiates a
-  test-only one.
-- `record()` takes a snapshot **thunk**, so a recorder that doesn't need
-  snapshots pays zero clones. `Tree.record` caches by `version`, so a
-  dispatched operation performs **one** clone per mutation event and
-  **zero** extra clones for read events in between.
+- The four split sub-events share one post-split snapshot clone.
+  `split_slide_apart` is the first-emitted mutation marker; the others
+  reuse its cache.
+- Scene builders are pure and compositional. `layout_scene` only reads
+  from the scene — no cross-call state.
+- Node widths lerp for internal nodes but snap for leaves (integer cell
+  counts).
+- The player's `shown` signal is read inside its tween loop; the view's
+  effect must `untrack` the `player.update` call or every rAF tick will
+  cancel the ongoing tween and snap to destination.
+- `fanout ≥ 2` is enforced; `top_down + fanout = 2` is a hard error;
+  `bottom_up + fanout = 2` is allowed but warned.
 - `vis` has zero imports from `"core"` — everything flows through
   `"component"`.
-- `step_at(op, i).snapshot` is sufficient to render step `i`. Events are
-  highlight metadata only; there is no mutation to replay.
-- `fanout ≥ 2` is enforced; `top_down + fanout = 2` is a hard error
-  (empty-node explosion); `bottom_up + fanout = 2` is allowed but warned.
-- The `PlaybackBridge` is the only place that writes `index` / `total`
-  from an operation — the Events tab is purely a view.
