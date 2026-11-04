@@ -6,6 +6,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "exports": {
+    "./component": "./component/src/index.ts",
+    "./core": "./core/src/index.ts"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
