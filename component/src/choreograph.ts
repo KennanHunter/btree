@@ -1,4 +1,4 @@
-import type { AnimationID, Snapshot, SplitKind, Step } from "core";
+import type { AnimationID, Snapshot, SplitKind, Step } from "../../core/src";
 import type { Operation } from "./operation";
 import { step_at } from "./operation";
 import { easeInOutCubic, easeOutCubic } from "./ease";

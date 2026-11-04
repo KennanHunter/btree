@@ -9,7 +9,7 @@ import {
   untrack,
 } from "solid-js";
 import type { JSX } from "solid-js";
-import type { AnimationID } from "core";
+import type { AnimationID } from "../../core/src";
 import type { Operation } from "./operation";
 import { step_at, step_count } from "./operation";
 import { empty_highlight, highlight_from, type Highlight } from "./highlight";

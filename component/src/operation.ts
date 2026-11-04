@@ -1,4 +1,4 @@
-import type { BTreeOperation, Key, SearchResult, Step } from "core";
+import type { BTreeOperation, Key, SearchResult, Step } from "../../core/src";
 import type { OpRequest } from "./dispatch";
 import type { RangeSearchResult } from "./range";
 
