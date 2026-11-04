@@ -29,4 +29,4 @@ export {
   type TreeConfigurationError,
   type TreeConfigurationWarning,
   type TreeData,
-} from "../../core/src";
+} from "#core";

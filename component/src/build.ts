@@ -9,7 +9,7 @@ import {
   type Tree,
   type TreeConfig,
   type TreeConfigurationError,
-} from "../../core/src";
+} from "#core";
 export type BuildResult =
   | { ok: true; tree: Tree }
   | { ok: false; error: TreeConfigurationError };

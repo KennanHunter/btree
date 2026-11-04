@@ -1,4 +1,4 @@
-import type { Tree } from "../../core/src";
+import type { Tree } from "#core";
 import type { Operation, OperationResult } from "./operation";
 
 export type SearchRequest = { kind: "search"; value: number };

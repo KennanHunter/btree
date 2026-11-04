@@ -1,5 +1,5 @@
 import { createSignal, type Accessor } from "solid-js";
-import type { AnimationID } from "../../core/src";
+import type { AnimationID } from "#core";
 import type { EdgeLine, KeyBox, NodeBox, SlotBox } from "./view";
 import type { Keyframe, Pose, ProbeBox } from "./pose";
 import { choreograph, entry_pose, type Ctx } from "./choreograph";

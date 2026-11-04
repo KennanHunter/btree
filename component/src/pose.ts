@@ -1,4 +1,4 @@
-import type { AnimationID } from "../../core/src";
+import type { AnimationID } from "#core";
 import type { EdgeLine, KeyBox, NodeBox, SlotBox } from "./view";
 
 // A floating value cell. The choreographer uses it for the insert "probe"

@@ -1,4 +1,4 @@
-import type { AnimationID, BTreeEvent } from "../../core/src";
+import type { AnimationID, BTreeEvent } from "#core";
 
 export type Highlight = {
   nodes: Set<AnimationID>;

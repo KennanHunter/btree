@@ -8,14 +8,15 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "imports": {
+    "#core": "../core/src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {
-    "core": "workspace:*"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "solid-js": "^1.9.3"
   },

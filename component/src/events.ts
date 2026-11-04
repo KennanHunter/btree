@@ -5,4 +5,4 @@ export type {
   BTreeOperationKind,
   SplitKind,
   Step,
-} from "../../core/src";
+} from "#core";

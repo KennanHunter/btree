@@ -1,4 +1,4 @@
-import type { AnimationID, Key, NodeData, Snapshot, TreeData } from "../../core/src";
+import type { AnimationID, Key, NodeData, Snapshot, TreeData } from "#core";
 import {
   CANVAS_PADDING,
   CELL_H,
