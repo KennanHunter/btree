@@ -4,20 +4,23 @@
   "description": "",
   "type": "module",
   "exports": {
-    "./component": "./component/src/index.ts",
-    "./core": "./core/src/index.ts"
+    "./component": "./dist/component.jsx",
+    "./core": "./dist/core.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "typecheck": "tsc -p component && tsc -p core",
-    "test": "vitest run"
+    "build": "node build.mjs",
+    "prepare": "node build.mjs"
   },
   "peerDependencies": {
     "solid-js": "^1.9.3"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "solid-js": "^1.9.3",
-    "typescript": "~7.0.2",
-    "vitest": "^2.1.9"
+    "typescript": "~7.0.2"
   },
   "keywords": [],
   "author": "",

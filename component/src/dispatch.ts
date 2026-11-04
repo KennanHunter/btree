@@ -1,4 +1,4 @@
-import type { Tree } from "@kennanhunter/btree/core";
+import type { Tree } from "core";
 import type { Operation, OperationResult } from "./operation";
 
 export type SearchRequest = { kind: "search"; value: number };

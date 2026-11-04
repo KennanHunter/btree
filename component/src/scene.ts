@@ -1,4 +1,4 @@
-import type { AnimationID, Key, NodeData, Snapshot, TreeData } from "@kennanhunter/btree/core";
+import type { AnimationID, Key, NodeData, Snapshot, TreeData } from "core";
 import {
   CANVAS_PADDING,
   CELL_H,
