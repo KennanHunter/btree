@@ -9,7 +9,7 @@
 // relied on — deltas here are in the baseline's own pose frame, same
 // units as the fields they touch.
 
-import type { AnimationID, Snapshot } from "#core";
+import type { AnimationID, Snapshot } from "core";
 import type { Pose } from "./pose";
 import type { EdgeLine, KeyBox } from "./view";
 import { subtree_ids } from "./scene";

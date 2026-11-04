@@ -13,7 +13,7 @@
 // should make them PASS.
 
 import { describe, expect, it } from "vitest";
-import type { AnimationID, Tree } from "#core";
+import type { AnimationID, Tree } from "core";
 import {
   build_tree,
   choreograph,
