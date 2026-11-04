@@ -1,6 +1,5 @@
 packages:
   - 'core'
-  - 'component'
   - 'vis'
   - 'benchmark'
   - 'video-recorder'

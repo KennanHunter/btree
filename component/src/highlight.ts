@@ -1,4 +1,4 @@
-import type { AnimationID, BTreeEvent } from "core";
+import type { AnimationID, BTreeEvent } from "@kennanhunter/btree/core";
 
 export type Highlight = {
   nodes: Set<AnimationID>;
